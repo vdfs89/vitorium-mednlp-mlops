@@ -1,0 +1,11 @@
+# Espelho de runtime do grupo [tool.poetry.dependencies] em pyproject.toml,
+# usado pelo Dockerfile para manter a imagem enxuta (sem instalar o Poetry
+# dentro do container). Mantenha as versoes em sincronia com poetry.lock —
+# ver regra de versionamento em docs/SPEC.md.
+fastapi==0.115.14
+uvicorn[standard]==0.32.1
+pydantic==2.13.5
+scikit-learn==1.9.1
+pandas==2.3.3
+joblib==1.6.0
+prometheus-client==0.21.1

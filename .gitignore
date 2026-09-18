@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+data/raw/*.csv
+data/processed/*.csv
+
+.env
+.venv/
+venv/
+
+.DS_Store

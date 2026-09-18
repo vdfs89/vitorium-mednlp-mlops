@@ -1,0 +1,7 @@
+{
+  "n": 300,
+  "sklearn_mean_ms": 0.6728,
+  "onnx_mean_ms": 0.0873,
+  "speedup_x": 7.7,
+  "labels_match": true
+}
