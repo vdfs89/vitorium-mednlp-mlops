@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Instalar Poetry
+        run: pipx install poetry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "poetry"
+      - run: poetry install --no-root --only main,dev
+      - run: poetry run ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Poetry
+        run: pipx install poetry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "poetry"
+      - run: poetry install --no-root --only main,dev
+      - name: Baixar dataset e gerar splits processados
+        run: |
+          mkdir -p data/raw
+          curl -sL -o data/raw/medical_tc_train.csv https://raw.githubusercontent.com/sebischair/Medical-Abstracts-TC-Corpus/main/medical_tc_train.csv
+          curl -sL -o data/raw/medical_tc_test.csv https://raw.githubusercontent.com/sebischair/Medical-Abstracts-TC-Corpus/main/medical_tc_test.csv
+          PYTHONPATH=. poetry run python -m src.training.preprocess
+      - name: Treinar modelo baseline
+        run: PYTHONPATH=. poetry run python -m src.training.train
+      - name: Rodar testes (pytest + validacao de schema Pandera)
+        run: PYTHONPATH=. poetry run pytest tests/ -v
+      - name: Publicar artefato do modelo treinado
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-artifact
+          path: models/model.joblib
+          retention-days: 7
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar artefato do modelo treinado
+        uses: actions/download-artifact@v4
+        with:
+          name: model-artifact
+          path: models/
+      - name: Build da imagem Docker
+        run: docker build -t vitorium-api:${{ github.sha }} .

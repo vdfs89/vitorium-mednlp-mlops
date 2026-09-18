@@ -38,7 +38,7 @@
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
       "targets": [
         {
-          "expr": "100 * sum(rate(vitorium_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(vitorium_requests_total[1m]))",
+          "expr": "100 * (sum(rate(vitorium_requests_total{status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(vitorium_requests_total[1m]))",
           "legendFormat": "error rate"
         }
       ]
