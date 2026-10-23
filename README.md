@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/cover.svg" alt="VITORIUM — End-to-End MLOps Pipeline for Medical Text Classification" width="100%">
+</p>
+
 # VITORIUM
 
 **End-to-End MLOps Pipeline for Medical Text Classification**

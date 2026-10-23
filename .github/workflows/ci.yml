@@ -55,6 +55,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - name: Baixar artefato do modelo treinado
@@ -62,5 +65,18 @@ jobs:
         with:
           name: model-artifact
           path: models/
-      - name: Build da imagem Docker
-        run: docker build -t vitorium-api:${{ github.sha }} .
+      - name: Login no GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e (se for push) publicar a imagem Docker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ghcr.io/vdfs89/vitorium-mednlp-mlops:latest
+            ghcr.io/vdfs89/vitorium-mednlp-mlops:${{ github.sha }}
