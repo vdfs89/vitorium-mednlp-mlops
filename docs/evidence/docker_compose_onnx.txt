@@ -1,0 +1,21 @@
+# Evidencia: build da imagem multi-stage e API servindo ONNX dentro do container
+# Maquina do Vitor (Windows + Docker Desktop), 2026-10-27, commit 31da732 (tag v0.4.0).
+# Excerto da saida real do PowerShell; linhas de download/progresso removidas, nenhuma alterada.
+
+PS F:\FIAP\Tech Challenge - 03\vitorium-mednlp-mlops> docker compose -f docker/docker-compose.yml up --build -d
+#6 [builder 1/5] FROM docker.io/library/python:3.11-slim@sha256:ae952e0a57138a4317b9b61caaa19a8217c2f356803f8d7e63aad08769950937
+#7 [runtime 2/6] RUN useradd --create-home --shell /bin/bash appuser
+#8 [builder 2/5] RUN python -m venv /opt/venv
+#12 [builder 5/5] RUN pip install --no-cache-dir -r requirements.txt
+#12 31.38 Successfully installed annotated-types-0.8.0 anyio-4.15.1 click-8.5.0 cloudpickle-3.1.2 fastapi-0.115.14 flatbuffers-25.12.19 h11-0.16.0 httptools-0.9.0 idna-3.20 joblib-1.6.0 narwhals-2.28.0 numpy-2.4.6 onnxruntime-1.30.0 packaging-26.3 pandas-2.3.3 prometheus-client-0.21.1 protobuf-7.36.2 pydantic-2.13.5 pydantic-core-2.46.5 python-dateutil-3.0.0 python-dotenv-1.2.4 pytz-2026.5 pyyaml-6.0.3 scikit-learn-1.9.1 scipy-1.17.1 six-1.17.0 starlette-0.46.2 threadpoolctl-3.7.0 typing-extensions-4.16.0 typing-inspection-0.4.4 tzdata-2026.5 uvicorn-0.32.1 uvloop-0.23.0 watchfiles-1.3.0 websockets-17.3
+#13 [runtime 4/6] COPY --from=builder /opt/venv /opt/venv
+#14 [runtime 5/6] COPY --chown=appuser:appuser src/ src/
+#15 [runtime 6/6] COPY --chown=appuser:appuser models/ models/
+#16 naming to docker.io/library/vitorium-api:latest done
+[+] up 4/4
+ ✔ Image vitorium-api:latest     Built                                                                             86.0s
+ ✔ Container vitorium-api        Started                                                                            1.4s
+ ✔ Container vitorium-prometheus Started                                                                            0.8s
+ ✔ Container vitorium-grafana    Started                                                                            0.3s
+PS F:\FIAP\Tech Challenge - 03\vitorium-mednlp-mlops> curl.exe -s http://localhost:8000/health
+{"status":"ok","model_loaded":true,"backend":"onnx"}
