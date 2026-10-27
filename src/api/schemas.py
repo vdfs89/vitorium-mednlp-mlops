@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LaudoInput(BaseModel):
@@ -12,8 +12,30 @@ class LaudoInput(BaseModel):
         ...,
         min_length=10,
         max_length=20_000,
-        description="Texto do laudo/relato clinico a ser classificado.",
+        description=(
+            "Texto do laudo/relato clinico a ser classificado (espacos nas pontas "
+            "sao removidos antes de validar o tamanho; precisa conter letras)."
+        ),
     )
+
+    @field_validator("texto", mode="before")
+    @classmethod
+    def strip_whitespace(cls, value: object) -> object:
+        """Trim before the length check, so 20 spaces do not count as 20 characters."""
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("texto")
+    @classmethod
+    def require_letters(cls, value: str) -> str:
+        """Reject texts with no letters (only punctuation/digits/symbols).
+
+        Such inputs have an all-zero TF-IDF vector, so the model can only return
+        its intercept-driven default (``normal`` at ~0.41) -- an answer that
+        looks like a prediction but carries no information.
+        """
+        if not any(ch.isalpha() for ch in value):
+            raise ValueError("texto precisa conter palavras (apenas simbolos/numeros)")
+        return value
 
     model_config = {
         "json_schema_extra": {

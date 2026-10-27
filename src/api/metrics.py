@@ -18,6 +18,7 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+from starlette.routing import Match
 
 REQUEST_COUNT = Counter(
     "vitorium_requests_total",
@@ -53,22 +54,52 @@ def set_model_info(backend: str) -> None:
     MODEL_INFO.labels(backend=backend).set(1)
 
 
+UNMATCHED_ENDPOINT = "unmatched"
+
+
+def route_label(app: FastAPI, request: Request) -> str:
+    """Return the route *template* for the label, never the raw URL path.
+
+    Using ``request.url.path`` would create one Prometheus series per distinct
+    URL (e.g. every 404 probe), an unbounded-cardinality leak. Known routes keep
+    their template (``/predict``, ``/health``, ``/metrics``); anything else is
+    collapsed into a single ``unmatched`` label.
+    """
+    for route in app.router.routes:
+        match, _ = route.matches(request.scope)
+        if match == Match.FULL:
+            return getattr(route, "path", UNMATCHED_ENDPOINT)
+    return UNMATCHED_ENDPOINT
+
+
 def install_metrics_middleware(app: FastAPI) -> None:
     @app.middleware("http")
     async def prometheus_middleware(request: Request, call_next: Callable) -> Response:
-        start = time.perf_counter()
-        response = await call_next(request)
-        duration = time.perf_counter() - start
+        """Record count and latency for every request, including unhandled errors.
 
-        endpoint = request.url.path
-        REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(duration)
-        REQUEST_COUNT.labels(
-            method=request.method,
-            endpoint=endpoint,
-            status_code=response.status_code,
-        ).inc()
-        response.headers["X-Process-Time-Ms"] = f"{duration * 1000:.2f}"
-        return response
+        An exception raised inside the endpoint escapes ``call_next`` before any
+        response exists; Starlette's ServerErrorMiddleware then answers 500. The
+        ``finally`` block records that request as status 500 and re-raises, so
+        the error is both counted and still handled (and logged) upstream.
+        """
+        endpoint = route_label(app, request)
+        start = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            response.headers["X-Process-Time-Ms"] = (
+                f"{(time.perf_counter() - start) * 1000:.2f}"
+            )
+            return response
+        finally:
+            duration = time.perf_counter() - start
+            REQUEST_LATENCY.labels(method=request.method, endpoint=endpoint).observe(duration)
+            REQUEST_COUNT.labels(
+                method=request.method,
+                endpoint=endpoint,
+                status_code=status_code,
+            ).inc()
 
     @app.get("/metrics", include_in_schema=False)
     def metrics() -> Response:
