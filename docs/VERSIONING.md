@@ -45,16 +45,14 @@ puxou o repositório.
 
 | Tag | O que cobre |
 |---|---|
-| `v0.1.0` | Scaffold inicial: Etapa 1 completa e testada (API + Docker + decisão de arquitetura); Etapas 2-4 com fundação escrita e parcialmente validada (ver `docs/SPEC.md` seção 2 para o status exato de cada requisito) |
-| `v0.1.1` (próxima, sugerida) | Migração para Poetry, e Docker build + Docker Compose (API+Prometheus+Grafana) **verificados de ponta a ponta** na máquina do Vitor — 3 containers healthy, target UP, dashboard populado com 97 requisições reais (prints em `docs/evidence/`). Fica como PATCH, não MINOR, porque a Etapa 2 (Airflow) ainda não foi verificada e a regra liga MINOR a etapas fechadas em ordem — isso foi verificação antecipada por oportunidade (o Docker já estava aberto), não uma etapa formalmente encerrada na sequência. |
+| `v0.1.0` | Scaffold inicial + SPEC.md (SDD) e esta regra de versionamento |
+| `v0.1.1` | Migração para Poetry; Docker build e Compose (API + Prometheus + Grafana) verificados de ponta a ponta na máquina do Vitor |
+| `v0.4.0` (a criar após o CI verde) | Etapas 2, 3 e 4 verificadas: DAG executada no Airflow, alertas testados com promtool, API servindo ONNX com paridade e comparação de latência end-to-end, Dockerfile multi-stage, Model Card e plano de monitoramento. Pula `v0.2.0`/`v0.3.0` porque as três etapas fecharam no mesmo dia — a regra de MINOR por etapa é sobre histórico legível, e uma tag por etapa apontando para o mesmo commit não acrescentaria informação |
+| `v1.0.0` (reservada) | Entrega final: vídeo STAR gravado |
 
-**Nota sobre ordem fora de sequência:** nada impede validar uma etapa antes
-da outra — a nota do desafio avalia cada requisito isoladamente. A regra de
-tag acima é só para manter o histórico legível; é igualmente válido pular
-direto para `v0.3.0` agora, já que a Etapa 3 está genuinamente completa,
-mesmo com a Etapa 2 pendente. Decisão do Vitor.
+Comando, só depois do CI verde no commit final:
 
-Próximas tags esperadas: `v0.2.0` quando o CI/CD e a DAG do Airflow forem
-validados de ponta a ponta em um ambiente real, `v0.4.0` ao fechar a
-comparação de latência end-to-end do ONNX, e `v1.0.0` na entrega final com
-o vídeo STAR.
+```bash
+git tag -a v0.4.0 -m "Etapas 2-4 verificadas: Airflow, alertas, ONNX end-to-end"
+git push origin v0.4.0
+```

@@ -20,21 +20,25 @@ modelo simples é uma decisão de design, não uma limitação.
 
 ## 2. Rastreabilidade de requisitos obrigatórios
 
-| Requisito (enunciado Fase 3) | Onde está | Status |
+Status atualizado em 27/10/2026. "Verificado" significa executado de verdade,
+com a evidência citada; nada aqui é só "escrito".
+
+| Requisito (enunciado Fase 3) | Onde está | Status e evidência |
 |---|---|---|
-| Pipeline CI/CD com GitHub Actions (lint → test → build) | `.github/workflows/ci.yml` | Sintaxe validada; 3 jobs encadeados com `needs`, artefato do modelo passado entre jobs |
-| DAG/script Airflow de treino/retreino | `dags/train_pipeline_dag.py` | Sintaxe validada (TaskFlow API); requer `airflow dags test` em ambiente com Airflow para validação de execução |
-| Dockerfile funcional da API | `Dockerfile` | **Verificado**: build real (`docker compose up --build`) na máquina do Vitor, imagem `vitorium-api:latest`, container `healthy`, `/health` retornando 200 (`x-process-time-ms: 0.64`) |
-| Docker Compose: API + Prometheus + Grafana | `docker/docker-compose.yml` + `docker/prometheus.yml` + `docker/grafana/provisioning/` | **Verificado end-to-end**: 3 containers up, target `vitorium-api` UP no Prometheus, dashboard com 5 painéis populado com 97 requisicoes reais. Evidencia em `docs/evidence/` |
-| Histórico de commits organizado | commits deste repo a partir de agora | Primeiro commit é o scaffold; commits seguintes devem ser um por etapa/funcionalidade, não um monólito final |
-| Scikit-Learn (modelo leve) | `src/training/train.py` (TF-IDF + LogisticRegression) | Treinado e avaliado: acc 0,6195 / macro F1 0,6158 (real, ver `models/metrics.json`) |
-| FastAPI (`/predict`, `/health`) | `src/api/main.py` | Testado (7 testes em `tests/`), rodando ao vivo neste ambiente |
-| `prometheus_client` instrumentando latência + contagem | `src/api/metrics.py` | Middleware real, testado (`test_metrics_endpoint_exposes_prometheus_format`) |
-| Airflow orquestrando treino | `dags/train_pipeline_dag.py` | Ver acima |
-| Otimização de latência (ONNX/quantização/pruning) | `scripts/export_onnx.py` | Executado: ONNX 7,70x mais rápido que sklearn na inferência pura, saída validada byte-a-byte |
-| Comparação de latência original vs. otimizado | `models/onnx_latency_comparison.json` + `scripts/bench_latency.py` | Parcial: comparação de inferência pura pronta; falta rodar `bench_latency.py` contra a API já servindo via ONNX (troca de backend em `src/api/main.py`) |
-| Decisão de arquitetura de nuvem documentada no README | `README.md` (seção "Decisão arquitetural") | Feito: Cloud Run, com justificativa e checklist da aula |
-| Vídeo STAR (≤ 5 min) | — | Pendente — depende do pipeline completo (Etapas 2-4) estar rodando de ponta a ponta |
+| Pipeline CI/CD com GitHub Actions (lint → test → build) | `.github/workflows/ci.yml` | **Verificado**: execução verde no GitHub (`57cb177`: lint, test, build + push no GHCR). O `test` re-treina, exporta o ONNX e passa os dois artefatos ao `build`, que publica a imagem (`latest` + `<sha>`) |
+| DAG/script Airflow de treino/retreino | `dags/train_pipeline_dag.py` | **Verificado**: `airflow dags test` com Airflow 2.10.5, 4/4 tasks `success` (`ingest_data → train_model → export_onnx → save_model_report`), métricas idênticas às versionadas. Evidência: `docs/evidence/airflow_dags_test.log`, `airflow_task_states.txt`; reprodução: `make airflow-test` |
+| Dockerfile funcional da API | `Dockerfile` (multi-stage) + `.dockerignore` | Lint `hadolint` sem achados; a versão single-stage anterior foi validada com `docker compose up --build` na máquina do Vitor e no build do CI (`57cb177`) |
+| Docker Compose: API + Prometheus + Grafana | `docker/docker-compose.yml`, `docker/prometheus.yml`, `docker/grafana/provisioning/` | **Verificado end-to-end**: 3 containers up, target UP, dashboard de 5 painéis com tráfego real. Evidência: `docs/evidence/*.png` |
+| Monitoramento com alertas | `docker/alerts.yml` + `docs/MONITORING.md` | **Verificado**: `promtool check rules` (9 regras) e `promtool test rules docker/alerts_test.yml` passando; playbook por alerta |
+| Histórico de commits organizado | `git log` | Commits semânticos (Conventional Commits) a partir da `v0.1.1`, um por unidade de trabalho; os 3 primeiros commits são o scaffold inicial |
+| Scikit-Learn (modelo leve) | `src/training/train.py` | **Verificado**: acc 0,6195 / macro F1 0,6158 (`models/metrics.json`), determinístico (re-treino no CI e no Airflow reproduz os mesmos valores) |
+| FastAPI (`/predict`, `/health`) | `src/api/main.py`, `src/api/backends.py` | **Verificado**: 14 testes (`tests/`), incluindo integração e paridade entre backends |
+| `prometheus_client` instrumentando latência + contagem | `src/api/metrics.py` | **Verificado**: middleware real, testado; inclui `vitorium_model_info{backend}` |
+| Otimização de latência (ONNX/quantização/pruning) | `src/training/onnx_export.py`, `scripts/export_onnx.py`, `src/api/backends.py` | **Verificado**: API serve ONNX por padrão; paridade com sklearn em 100% dos 2.888 textos de teste (máx. dif. 1,6e-7); inferência pura 4,09x mais rápida (`models/onnx_latency_comparison.json`) |
+| Comparação de latência original vs. otimizado | `scripts/compare_backends.py` → `models/api_latency_comparison.json` | **Verificado**: end-to-end via HTTP, 5 rodadas intercaladas × 300 req: p50 3,401 → 2,514 ms (1,35x), p95 4,486 → 3,115 ms |
+| Decisão de arquitetura de nuvem documentada no README | `README.md` ("Decisão arquitetural") + ADR-002 | Feito: Cloud Run, com o checklist da aula; imagem pública no GHCR como artefato de deploy. Deploy real não feito (bônus) |
+| Model Card / limitações | `docs/MODEL_CARD.md` | Feito: métricas por classe, vieses, cenários de falha, errata do ONNX |
+| Vídeo STAR (≤ 5 min) | `docs/VIDEO_STAR.md` | Roteiro pronto (≈ 4 min de fala, cada número com arquivo-fonte); **gravação pendente** |
 
 ## 3. Decisões de arquitetura (ADR resumido)
 
@@ -55,9 +59,17 @@ de triagem clínica que o dataset não tem.
 **ADR-004 — TF-IDF + LogisticRegression, não Random Forest.** O enunciado
 sugere "TF-IDF + Random Forest ou modelo leve similar" como exemplo, não
 como exigência. LogisticRegression foi escolhida por ser igualmente leve,
-mais rápida de treinar (3,64s vs. RF tipicamente mais lento em texto de alta
-dimensionalidade) e por ter conversão ONNX mais direta e sem ambiguidade de
-`zipmap`. Trade-off documentado, não uma omissão.
+mais rápida de treinar (3,79 s, `models/metrics.json`; RF tipicamente é mais lento em texto de alta
+dimensionalidade) e por ter conversão ONNX mais direta. Trade-off documentado,
+não uma omissão.
+
+**ADR-005 — Exportador ONNX próprio, com paridade obrigatória.** A
+conversão padrão do skl2onnx não reproduzia o `TfidfVectorizer` com
+`stop_words="english"` (rótulos divergiam em ~1,2% do teste) e dependia do
+locale `en_US.UTF-8`. `src/training/onnx_export.py` monta o grafo
+equivalente e `scripts/export_onnx.py` aborta se qualquer texto do teste
+divergir além de 1e-5. A mesma checagem roda como task da DAG, então um
+retreino nunca publica um ONNX não equivalente.
 
 ## 4. Convenções de código (clean code)
 
@@ -72,25 +84,9 @@ dimensionalidade) e por ter conversão ONNX mais direta e sem ambiguidade de
 - Um commit por unidade de trabalho coerente (uma etapa, uma correção, uma
   feature) — não empilhar Etapas 2-4 num commit só.
 
-## 5. Próximos passos (na ordem)
+## 5. Próximos passos
 
-1. ~~Validar `docker build` / `docker compose up` num ambiente com Docker
-   daemon.~~ **Feito** — `docker compose up --build` rodou na máquina do
-   Vitor, 3 containers `healthy`, `/health` respondendo 200.
-2. Rodar `airflow dags test vitorium_train_pipeline 2026-01-01` num ambiente
-   com Airflow instalado.
-3. Trocar o backend de inferência da API para usar `models/model.onnx` via
-   `onnxruntime` e re-rodar `bench_latency.py` para a comparação end-to-end
-   (fecha a Etapa 4).
-4. ~~Gerar tráfego real e printar o dashboard do Grafana.~~ **Feito** — 97
-   requisições reais, target `UP`, dashboard populado (paineis de total,
-   latência p95, RPS e predições por classe com dados reais; taxa de erro
-   corrigida para mostrar 0% explícito em vez de "No data"). Prints em
-   `docs/evidence/prometheus-targets-up.png` e
-   `docs/evidence/grafana-dashboard-populated.png`.
-5. Roteirizar e gravar o vídeo STAR com os números reais deste documento.
-
-Nota sobre ordem: a Etapa 3 foi verificada antes da Etapa 2 (Airflow) por
-oportunidade — o Docker já estava aberto. Isso não é um problema: cada
-etapa é independente e a nota avalia cada requisito isoladamente. Ver
-`docs/VERSIONING.md` para como isso afeta a tag.
+1. Gravar o vídeo STAR seguindo `docs/VIDEO_STAR.md` e taguear `v1.0.0`.
+2. (Bônus) `gcloud run deploy --image ghcr.io/vdfs89/vitorium-mednlp-mlops:<sha>`.
+3. (Produção) Alertmanager com roteamento, e amostragem rotulada periódica
+   para medir acurácia real (hoje o drift é monitorado por proxy).

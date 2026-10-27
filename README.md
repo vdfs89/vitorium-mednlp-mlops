@@ -9,9 +9,14 @@ Medical NLP · MLOps · Production ML
 
 Tech Challenge — FIAP Pós-Tech em Machine Learning Engineering, Fase 3 (Cloud and MLOps).
 
-> Especificação técnica completa, com rastreabilidade de requisitos e ADRs,
-> em [`docs/SPEC.md`](docs/SPEC.md) — mantenha-o atualizado a cada etapa.
-> Regra de versionamento (tags Git) em [`docs/VERSIONING.md`](docs/VERSIONING.md).
+| Documento | Conteúdo |
+|---|---|
+| [`docs/SPEC.md`](docs/SPEC.md) | Especificação (SDD): rastreabilidade de cada requisito obrigatório + ADRs |
+| [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | Model Card: métricas por classe, limitações, vieses e cenários de falha |
+| [`docs/MONITORING.md`](docs/MONITORING.md) | Plano de monitoramento: SLOs, alertas e playbook de resposta |
+| [`docs/VIDEO_STAR.md`](docs/VIDEO_STAR.md) | Roteiro do vídeo de 5 minutos (método STAR) |
+| [`docs/VERSIONING.md`](docs/VERSIONING.md) | Regra de versionamento (tags SemVer) |
+| [`docs/evidence/`](docs/evidence/) | Evidências de execução: Prometheus, Grafana e Airflow |
 
 ## Contexto
 
@@ -89,106 +94,175 @@ rápida contra o framework de decisão da aula:
 | Sempre carregado? | Não precisa — modelo leve, cold start rápido |
 | CPU ou GPU? | CPU só |
 
-O deploy real em nuvem é opcional/bônus; o obrigatório (stack local via
-Docker Compose) está descrito abaixo.
+A ponte para a nuvem já existe: a cada push na `main`, o CI publica a
+imagem no GitHub Container Registry (`ghcr.io/vdfs89/vitorium-mednlp-mlops`,
+tags `latest` e `<sha do commit>`), o artefato que um `gcloud run deploy
+--image` consumiria. O deploy real em nuvem é opcional/bônus e **não** foi
+feito; o obrigatório (stack local via Docker Compose) está descrito abaixo.
 
 ## Resultados reais (medidos, não estimados)
 
-Todos os números abaixo vieram de execuções reais neste ambiente de
-desenvolvimento — nenhum é estimativa.
+Cada número abaixo vem de um arquivo versionado em `models/`, gerado por um
+script do repositório. Nenhum é estimativa.
 
-**Modelo baseline** (`src/training/train.py`, TF-IDF + LogisticRegression, seed=42):
+**Modelo** (`src/training/train.py`, TF-IDF + LogisticRegression, seed 42 —
+fonte: `models/metrics.json`). Treino determinístico: re-treinado do zero
+no CI e na DAG do Airflow, sempre com as mesmas métricas.
 
 | Métrica | Valor |
 |---|---:|
 | Acurácia (holdout de teste, 2.888 amostras) | 0,6195 |
 | Macro F1 | 0,6158 |
-| Tempo de treino | 3,64s |
+| F1 por classe (`atencao` / `urgente` / `normal`) | 0,715 / 0,669 / 0,463 |
+| Tempo de treino | 3,79 s |
 
-**Latência da API — Etapa 1 baseline** (`scripts/bench_latency.py`, 200 requisições,
-uvicorn local, sem container):
+A classe `normal` ("general pathological conditions") é a mais fraca por ser
+uma categoria genérica que se sobrepõe às outras — detalhes no
+[Model Card](docs/MODEL_CARD.md).
 
-| Percentil | Latência |
-|---|---:|
-| p50 | 2,72 ms |
-| p95 | 3,07 ms |
-| p99 | 3,67 ms |
+**Otimização de latência — ONNX Runtime (Etapa 4).** A API serve o modelo
+ONNX por padrão (`VITORIUM_BACKEND=onnx`, com fallback para sklearn) e o
+`/health` informa qual backend está ativo.
 
-**Otimização ONNX — Etapa 4** (`scripts/export_onnx.py`, 300 chamadas, CPU):
+| Medição | sklearn | ONNX | Ganho | Fonte |
+|---|---:|---:|---:|---|
+| Inferência pura, média por texto (sem HTTP) | 1,084 ms | 0,265 ms | **4,09x** | `models/onnx_latency_comparison.json` |
+| API `/predict` end-to-end, p50 | 3,401 ms | 2,514 ms | **1,35x** | `models/api_latency_comparison.json` |
+| API `/predict` end-to-end, p95 | 4,486 ms | 3,115 ms | 1,44x | `models/api_latency_comparison.json` |
+| API `/predict` end-to-end, p99 | 8,109 ms | 5,188 ms | 1,56x | `models/api_latency_comparison.json` |
 
-| | sklearn (original) | ONNX Runtime | Speedup |
-|---|---:|---:|---:|
-| Inferência pura (sem overhead de API) | 0,673 ms | 0,087 ms | **7,70x** |
+Metodologia end-to-end (`scripts/compare_backends.py`): dois servidores
+uvicorn idênticos, diferentes só no backend, 5 rodadas intercaladas × 300
+requisições (warmup de 50), mediana entre rodadas; o ONNX teve p50 menor nas
+5 rodadas. Equivalência: em todos os 2.888 textos de teste, o ONNX dá o
+mesmo rótulo que o sklearn (diferença máxima de probabilidade 1,6e-7); a
+exportação **falha** se a paridade quebrar. Leitura honesta: o modelo fica
+~4x mais rápido, mas na API o ganho é 1,35x porque HTTP, FastAPI e Pydantic
+dominam o tempo de resposta.
 
-Saída ONNX validada byte-a-byte contra o pipeline sklearn (mesmo label,
-mesmas probabilidades) — `models/model.onnx` já está no repositório.
-Nota honesta: esse speedup é na camada de inferência pura; a latência
-end-to-end da API (Etapa 1, ~2,6ms) já é dominada por overhead de
-FastAPI/HTTP, não pelo modelo — o ganho visível ao trocar o backend de
-inferência da API deve ser proporcionalmente menor que 5,44x. A comparação
-completa end-to-end (API com sklearn vs. API com ONNX) é o entregável final
-da Etapa 4.
+> **Errata.** Até a `v0.1.1` este README publicava 7,70x de speedup. Esse
+> número vinha de uma exportação ONNX padrão do skl2onnx que **não era
+> equivalente** ao modelo (descartava as stop words; ~1,2% dos rótulos
+> divergiam) e que nem carregava na imagem `python:3.11-slim` (dependia do
+> locale `en_US.UTF-8`). O exportador foi reescrito
+> (`src/training/onnx_export.py`) e todos os números acima foram medidos de
+> novo.
+
+**Retreino orquestrado (Etapa 2).** A DAG `vitorium_train_pipeline`
+(`ingest_data → train_model → export_onnx → save_model_report`) foi
+executada de verdade com Apache Airflow 2.10.5 (`airflow dags test`):
+4/4 tasks `success`, métricas idênticas às versionadas e paridade ONNX de
+100%. Log em [`docs/evidence/airflow_dags_test.log`](docs/evidence/airflow_dags_test.log).
+
+## Monitoramento e alertas
+
+O `/metrics` expõe contagem de requisições por endpoint/status, histograma
+de latência e contagem de predições por classe. O Grafana sobe com um
+dashboard de 5 painéis provisionado; o Prometheus avalia 4 regras de alerta
+(`docker/alerts.yml`), cobertas por testes unitários do `promtool`
+(`docker/alerts_test.yml`):
+
+| Alerta | Dispara quando | Severidade |
+|---|---|---|
+| `VitoriumApiDown` | target da API fora do ar por 1 min | critical |
+| `VitoriumHighErrorRate` | > 5% de respostas 5xx em 5 min | critical |
+| `VitoriumHighLatencyP95` | p95 do `/predict` > 50 ms por 10 min | warning |
+| `VitoriumPredictionDistributionShift` | fração de alguma classe em 1 h desvia > 15 p.p. da distribuição de treino (proxy de drift) | warning |
+
+SLOs, diagnóstico e resposta para cada alerta estão no
+[playbook](docs/MONITORING.md). Não há Alertmanager configurado: os alertas
+aparecem em `http://localhost:9090/alerts`.
 
 ## Estrutura do repositório
 
 ```
 vitorium-mednlp-mlops/
-├── .github/workflows/ci.yml       # lint (ruff) -> test (pytest) -> build (docker)
-├── dags/train_pipeline_dag.py     # Airflow: ingest -> train -> save
-├── data/{raw,processed}/          # CSVs (gitignored; baixar/gerar via make)
+├── .github/workflows/ci.yml   # lint -> test (treina + exporta ONNX) -> build + push GHCR
+├── dags/train_pipeline_dag.py # Airflow: ingest -> train -> export_onnx -> report
+├── data/{raw,processed}/      # CSVs (gitignored; baixados pelo CI / localmente)
 ├── docker/
-│   ├── docker-compose.yml         # api + prometheus + grafana
-│   ├── prometheus.yml
-│   └── grafana/provisioning/      # datasource + dashboard (5 paineis) pre-configurados
-├── models/                        # model.joblib, model.onnx, metrics.json (versionados)
+│   ├── docker-compose.yml     # api + prometheus + grafana
+│   ├── prometheus.yml         # scrape + rule_files
+│   ├── alerts.yml             # 4 alertas + recording rules
+│   ├── alerts_test.yml        # testes unitarios das regras (promtool)
+│   └── grafana/provisioning/  # datasource + dashboard (5 paineis)
+├── docs/                      # SPEC, Model Card, monitoramento, roteiro STAR, evidencias
+├── models/                    # model.joblib, model.onnx, metrics.json, benchmarks (JSON)
 ├── scripts/
-│   ├── bench_latency.py           # benchmark real contra servidor rodando
-│   └── export_onnx.py             # Etapa 4: exporta e valida ONNX
+│   ├── bench_latency.py       # latencia contra um servidor rodando
+│   ├── compare_backends.py    # end-to-end sklearn vs ONNX
+│   ├── export_onnx.py         # exporta, valida paridade, mede inferencia pura
+│   └── run_airflow_dag_test.sh
 ├── src/
-│   ├── api/{main,schemas,metrics}.py
-│   └── training/{preprocess,train}.py
-├── tests/                         # pytest: smoke, schema (Pandera), integracao
-├── Dockerfile
-├── Makefile
-├── pyproject.toml / poetry.lock    # deps (Poetry) + config ruff/pytest
-├── requirements.txt                # espelho runtime p/ Docker (sem Poetry no container)
-├── docs/SPEC.md / docs/VERSIONING.md
-└── README.md
+│   ├── api/{main,backends,schemas,metrics}.py
+│   └── training/{preprocess,train,onnx_export}.py
+├── tests/                     # pytest: smoke, schema (Pandera), backends, integracao
+├── Dockerfile                 # multi-stage, usuario nao-root, healthcheck
+├── .dockerignore / .env.example
+├── Makefile                   # `make help` lista os alvos
+├── pyproject.toml / poetry.lock
+└── requirements.txt           # espelho runtime do Poetry para a imagem Docker
 ```
 
 ## Como rodar
 
-```bash
-make install                # poetry install (deps de producao + dev em grupos separados)
-make train                  # baixa dados (preprocess.py baixa localmente) + treina
-make test                   # pytest (7 testes)
-poetry run uvicorn src.api.main:app --port 8000 &
-make bench-latency          # latencia real contra o servidor local
-make export-onnx            # Etapa 4: exporta e compara ONNX vs sklearn
+**Opção 1 — imagem pronta do GHCR** (sem clonar, sem treinar):
 
-make compose-up             # stack completa: API + Prometheus + Grafana
-# Grafana: http://localhost:3000 (admin/admin) — dashboard "VITORIUM API" ja provisionado
-# Prometheus: http://localhost:9090
+```bash
+docker run --rm -p 8000:8000 ghcr.io/vdfs89/vitorium-mednlp-mlops:latest
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
+  -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}'
 ```
+
+**Opção 2 — stack completa local** (API + Prometheus + Grafana):
+
+```bash
+cp .env.example .env          # opcional; sem ele valem os defaults
+make compose-up               # docker compose --env-file .env -f docker/docker-compose.yml up --build -d
+# API:        http://localhost:8000/docs  (Swagger)  e  /health
+# Grafana:    http://localhost:3000  — dashboard "VITORIUM API" já provisionado
+# Prometheus: http://localhost:9090  — alertas em /alerts
+```
+
+**Opção 3 — desenvolvimento** (Python 3.11 + Poetry):
+
+```bash
+make install                  # poetry install (grupos main + dev)
+make train                    # preprocess + treino (dados em data/raw/)
+make export-onnx              # model.onnx + paridade + benchmark de inferência pura
+make test                     # 14 testes
+make lint
+make compare-backends         # benchmark end-to-end sklearn vs ONNX
+make airflow-test             # executa a DAG com Airflow num venv isolado
+make test-alerts              # promtool test rules (via Docker)
+```
+
+No Windows sem `make`, cada alvo é um comando de uma linha — veja o
+`Makefile` (ex.: `docker compose -f docker/docker-compose.yml up --build -d`).
+Os CSVs vão em `data/raw/` (`medical_tc_train.csv` e `medical_tc_test.csv`,
+do [corpus original](https://github.com/sebischair/Medical-Abstracts-TC-Corpus);
+o CI baixa os dois com `curl`).
 
 ## Status por etapa
 
-- [x] **Etapa 1** — API FastAPI funcional, decisão arquitetural documentada,
-      baseline de latência medido (2,57ms p50).
-- [x] **Etapa 2 (parcial)** — DAG Airflow escrita e com sintaxe validada
-      (TaskFlow API, 3 tasks); requer `airflow dags test` em ambiente com
-      Airflow instalado para validação de execução real. Workflow GitHub
-      Actions validado (lint → test → build com upload/download de
-      artefato entre jobs).
-- [x] **Etapa 3** — Docker Compose com API + Prometheus + Grafana, dashboard
-      com 5 painéis provisionado automaticamente (total de requisições,
-      latência p95, taxa de erro, RPS, predições por classe).
-- [x] **Etapa 4 (parcial)** — ONNX exportado e validado (5,44x mais rápido
-      na inferência pura); falta a comparação end-to-end via API e o vídeo
-      STAR.
+- [x] **Etapa 1** — API FastAPI (`/predict`, `/health`, `/metrics`) com
+      Pydantic, Dockerfile multi-stage e decisão de arquitetura de nuvem
+      documentada.
+- [x] **Etapa 2** — CI/CD no GitHub Actions (lint → test → build + push da
+      imagem no GHCR) e DAG do Airflow executada de verdade (4/4 tasks).
+- [x] **Etapa 3** — Docker Compose com API + Prometheus + Grafana
+      verificado de ponta a ponta (prints em `docs/evidence/`), 4 regras de
+      alerta testadas e playbook de resposta.
+- [x] **Etapa 4** — API servindo ONNX, com paridade comprovada e comparação
+      de latência original vs. otimizado na inferência pura (4,09x) e end-to-end
+      (1,35x no p50).
+- [ ] **Vídeo STAR** — roteiro pronto em [`docs/VIDEO_STAR.md`](docs/VIDEO_STAR.md).
 
 ## Limitações e uso responsável
 
 Este é um projeto acadêmico (FIAP Pós-Tech). O classificador não é validado
 clinicamente, os rótulos de urgência são um proxy heurístico (ver seção
-acima) e o sistema não deve ser usado para triagem médica real.
+acima), o corpus é 100% em inglês (laudos em português ficam fora da
+distribuição de treino) e o sistema não deve ser usado para triagem médica
+real. Detalhes, vieses e cenários de falha no
+[Model Card](docs/MODEL_CARD.md).
