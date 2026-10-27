@@ -1,0 +1,149 @@
+# =============================================================================
+# VITORIUM — regras de alerta do Prometheus
+# =============================================================================
+# Carregadas por docker/prometheus.yml (rule_files) e montadas no container em
+# /etc/prometheus/alerts.yml (ver docker/docker-compose.yml).
+#
+# Sem Alertmanager neste projeto: os alertas ficam visiveis na pagina
+# "Alerts" do Prometheus (http://localhost:9090/alerts), com estados
+# inactive -> pending -> firing. Em producao o roteamento (e-mail, Slack,
+# PagerDuty, silenciamentos, agrupamento) seria configurado via Alertmanager.
+#
+# Playbook de resposta: docs/MONITORING.md (ancora = nome do alerta em minusculas).
+#
+# Validacao local:
+#   promtool check rules docker/alerts.yml
+#   promtool test rules docker/alerts_test.yml
+#
+# Observacao: o endpoint /metrics passa pelo middleware e tambem e contado em
+# vitorium_requests_total; os scrapes do Prometheus (a cada 5s) sao excluidos
+# da taxa de erro para nao diluir o denominador com trafego artificial.
+
+groups:
+  - name: vitorium-api
+    rules:
+      # -----------------------------------------------------------------------
+      # Recording rules (insumo do alerta de drift e dos dashboards)
+      # -----------------------------------------------------------------------
+      # Distribuicao a priori das classes no conjunto de treino.
+      - record: vitorium:predictions_prior:ratio
+        expr: vector(0.345)
+        labels:
+          urgencia: urgente
+      - record: vitorium:predictions_prior:ratio
+        expr: vector(0.323)
+        labels:
+          urgencia: atencao
+      - record: vitorium:predictions_prior:ratio
+        expr: vector(0.333)
+        labels:
+          urgencia: normal
+
+      # Volume de predicoes na ultima hora (guarda de volume minimo do drift).
+      - record: vitorium:predictions:increase1h
+        expr: sum(increase(vitorium_predictions_total{job="vitorium-api"}[1h]))
+
+      # Participacao de cada classe no total de predicoes da ultima hora.
+      - record: vitorium:predictions_share:ratio_rate1h
+        expr: |
+          sum by (urgencia) (rate(vitorium_predictions_total{job="vitorium-api"}[1h]))
+            / ignoring (urgencia) group_left
+          sum(rate(vitorium_predictions_total{job="vitorium-api"}[1h]))
+
+      # -----------------------------------------------------------------------
+      # Disponibilidade
+      # -----------------------------------------------------------------------
+      - alert: VitoriumApiDown
+        expr: up{job="vitorium-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API VITORIUM fora do ar ({{ $labels.instance }})"
+          description: >-
+            O Prometheus nao consegue coletar /metrics do alvo
+            {{ $labels.instance }} (job vitorium-api) ha mais de 1 minuto.
+            A API pode estar parada, reiniciando em loop ou inacessivel na rede
+            do compose.
+          runbook: "docs/MONITORING.md#vitoriumapidown"
+
+      # -----------------------------------------------------------------------
+      # Taxa de erro (5xx)
+      # -----------------------------------------------------------------------
+      # Sem trafego, numerador e denominador sao 0 -> 0/0 = NaN, e NaN > 0.05 e
+      # falso; a guarda "and on() ... > 0" deixa isso explicito. Se nunca houve
+      # 5xx, a serie do numerador nao existe e o resultado e vazio (nao dispara).
+      - alert: VitoriumHighErrorRate
+        expr: |
+          (
+            sum(rate(vitorium_requests_total{job="vitorium-api", endpoint!="/metrics", status_code=~"5.."}[5m]))
+              /
+            sum(rate(vitorium_requests_total{job="vitorium-api", endpoint!="/metrics"}[5m]))
+          ) > 0.05
+          and on ()
+          sum(rate(vitorium_requests_total{job="vitorium-api", endpoint!="/metrics"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erros 5xx da API VITORIUM acima de 5%"
+          description: >-
+            {{ $value | humanizePercentage }} das requisicoes (exceto /metrics)
+            terminaram com status 5xx nos ultimos 5 minutos, por mais de 5
+            minutos seguidos (limite: 5%). Verifique se o modelo foi carregado
+            (/health -> model_loaded) e os logs do container.
+          runbook: "docs/MONITORING.md#vitoriumhigherrorrate"
+
+      # -----------------------------------------------------------------------
+      # Latencia p95 do /predict
+      # -----------------------------------------------------------------------
+      # 0.05 s coincide com um limite de bucket do histograma (5ms..5s), entao a
+      # interpolacao do histogram_quantile e exata neste limiar. Sem trafego
+      # em /predict o quantil e NaN e o alerta nao dispara.
+      - alert: VitoriumHighLatencyP95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(vitorium_request_latency_seconds_bucket{job="vitorium-api", endpoint="/predict"}[5m]))
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia p95 do /predict acima de 50 ms"
+          description: >-
+            O p95 da latencia do /predict esta em {{ $value | humanizeDuration }}
+            (janela de 5 minutos), acima do SLO de 50 ms ha mais de 10 minutos.
+            Confira o backend ativo (VITORIUM_BACKEND), o tamanho dos textos
+            recebidos e a saturacao de CPU do container.
+          runbook: "docs/MONITORING.md#vitoriumhighlatencyp95"
+
+      # -----------------------------------------------------------------------
+      # Drift (proxy barato): distribuicao das predicoes vs. prior de treino
+      # -----------------------------------------------------------------------
+      # Dispara por classe (label urgencia) quando a participacao da classe na
+      # ultima hora se afasta mais de 0.15 (absoluto) da prior de treino
+      # (urgente 0.345, atencao 0.323, normal 0.333). O ramo "unless" cobre a
+      # classe que nunca apareceu desde o start (sem serie => participacao 0,
+      # desvio = prior > 0.15). Exige >= 100 predicoes/h para evitar ruido.
+      - alert: VitoriumPredictionDistributionShift
+        expr: |
+          (
+            abs(vitorium:predictions_share:ratio_rate1h - on (urgencia) vitorium:predictions_prior:ratio)
+            or
+            (vitorium:predictions_prior:ratio unless on (urgencia) vitorium:predictions_share:ratio_rate1h)
+          ) > 0.15
+          and on ()
+          vitorium:predictions:increase1h >= 100
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Distribuicao de predicoes deslocada na classe {{ $labels.urgencia }}"
+          description: >-
+            Na ultima hora, a participacao da classe {{ $labels.urgencia }}
+            difere da prior de treino em {{ printf "%.3f" $value }} (absoluto,
+            limite 0.15) ha mais de 30 minutos, com pelo menos 100 predicoes/h.
+            Proxy de drift de dados/conceito: compare a amostra recente de
+            textos com o conjunto de treino e avalie retreino.
+          runbook: "docs/MONITORING.md#vitoriumpredictiondistributionshift"

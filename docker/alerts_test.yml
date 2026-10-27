@@ -1,0 +1,181 @@
+# Testes unitarios das regras de alerta (series sinteticas).
+# Executar a partir da raiz do repositorio:
+#   promtool test rules docker/alerts_test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------------------
+  # VitoriumApiDown: alvo fora do ar por >= 1 minuto
+  # ---------------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="vitorium-api", instance="api:8000"}'
+        values: "1 1 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: VitoriumApiDown
+        exp_alerts: []
+      - eval_time: 2m # pending (ainda nao completou 1m)
+        alertname: VitoriumApiDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: VitoriumApiDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: vitorium-api
+              instance: "api:8000"
+            exp_annotations:
+              summary: "API VITORIUM fora do ar (api:8000)"
+              description: "O Prometheus nao consegue coletar /metrics do alvo api:8000 (job vitorium-api) ha mais de 1 minuto. A API pode estar parada, reiniciando em loop ou inacessivel na rede do compose."
+              runbook: "docs/MONITORING.md#vitoriumapidown"
+
+  # ---------------------------------------------------------------------------
+  # VitoriumHighErrorRate: 10 erros 5xx / 72 requisicoes por minuto (~13.9%)
+  # Os scrapes de /metrics nao entram no denominador.
+  # ---------------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="POST", endpoint="/predict", status_code="200"}'
+        values: "0+60x20"
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="POST", endpoint="/predict", status_code="500"}'
+        values: "0+10x20"
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="GET", endpoint="/health", status_code="200"}'
+        values: "0+2x20"
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="GET", endpoint="/metrics", status_code="200"}'
+        values: "0+12x20"
+    alert_rule_test:
+      - eval_time: 4m # pending
+        alertname: VitoriumHighErrorRate
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: VitoriumHighErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Taxa de erros 5xx da API VITORIUM acima de 5%"
+              description: "13.89% das requisicoes (exceto /metrics) terminaram com status 5xx nos ultimos 5 minutos, por mais de 5 minutos seguidos (limite: 5%). Verifique se o modelo foi carregado (/health -> model_loaded) e os logs do container."
+              runbook: "docs/MONITORING.md#vitoriumhigherrorrate"
+
+  # VitoriumHighErrorRate: sem trafego (contadores parados) nao dispara.
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="POST", endpoint="/predict", status_code="500"}'
+        values: "3x20"
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="POST", endpoint="/predict", status_code="200"}'
+        values: "7x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: VitoriumHighErrorRate
+        exp_alerts: []
+
+  # VitoriumHighErrorRate: apenas scrapes de /metrics (sem trafego real) e
+  # erros antigos parados nao disparam.
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="GET", endpoint="/metrics", status_code="200"}'
+        values: "0+12x20"
+      - series: 'vitorium_requests_total{job="vitorium-api", instance="api:8000", method="POST", endpoint="/predict", status_code="500"}'
+        values: "5x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: VitoriumHighErrorRate
+        exp_alerts: []
+
+  # ---------------------------------------------------------------------------
+  # VitoriumHighLatencyP95: p95 do /predict entre 50 e 100 ms
+  # ---------------------------------------------------------------------------
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_request_latency_seconds_bucket{job="vitorium-api", method="POST", endpoint="/predict", le="0.025"}'
+        values: "0x20"
+      - series: 'vitorium_request_latency_seconds_bucket{job="vitorium-api", method="POST", endpoint="/predict", le="0.05"}'
+        values: "0+10x20"
+      - series: 'vitorium_request_latency_seconds_bucket{job="vitorium-api", method="POST", endpoint="/predict", le="0.1"}'
+        values: "0+100x20"
+      - series: 'vitorium_request_latency_seconds_bucket{job="vitorium-api", method="POST", endpoint="/predict", le="+Inf"}'
+        values: "0+100x20"
+      # /health lento nao deve influenciar o alerta do /predict
+      - series: 'vitorium_request_latency_seconds_bucket{job="vitorium-api", method="GET", endpoint="/health", le="+Inf"}'
+        values: "0+100x20"
+    alert_rule_test:
+      - eval_time: 8m # pending (for: 10m)
+        alertname: VitoriumHighLatencyP95
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: VitoriumHighLatencyP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Latencia p95 do /predict acima de 50 ms"
+              description: "O p95 da latencia do /predict esta em 97.22ms (janela de 5 minutos), acima do SLO de 50 ms ha mais de 10 minutos. Confira o backend ativo (VITORIUM_BACKEND), o tamanho dos textos recebidos e a saturacao de CPU do container."
+              runbook: "docs/MONITORING.md#vitoriumhighlatencyp95"
+
+  # ---------------------------------------------------------------------------
+  # VitoriumPredictionDistributionShift
+  # ---------------------------------------------------------------------------
+  # Distribuicao proxima da prior (34/33/33 por minuto): nao dispara.
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="urgente"}'
+        values: "0+34x60"
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="atencao"}'
+        values: "0+33x60"
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="normal"}'
+        values: "0+33x60"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: VitoriumPredictionDistributionShift
+        exp_alerts: []
+
+  # Quase tudo "urgente" e classe "normal" ausente: dispara para as 3 classes
+  # (normal via ramo "unless", participacao 0).
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="urgente"}'
+        values: "0+90x60"
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="atencao"}'
+        values: "0+10x60"
+    alert_rule_test:
+      - eval_time: 20m # pending (for: 30m)
+        alertname: VitoriumPredictionDistributionShift
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: VitoriumPredictionDistributionShift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              urgencia: urgente
+            exp_annotations:
+              summary: "Distribuicao de predicoes deslocada na classe urgente"
+              description: "Na ultima hora, a participacao da classe urgente difere da prior de treino em 0.555 (absoluto, limite 0.15) ha mais de 30 minutos, com pelo menos 100 predicoes/h. Proxy de drift de dados/conceito: compare a amostra recente de textos com o conjunto de treino e avalie retreino."
+              runbook: "docs/MONITORING.md#vitoriumpredictiondistributionshift"
+          - exp_labels:
+              severity: warning
+              urgencia: atencao
+            exp_annotations:
+              summary: "Distribuicao de predicoes deslocada na classe atencao"
+              description: "Na ultima hora, a participacao da classe atencao difere da prior de treino em 0.223 (absoluto, limite 0.15) ha mais de 30 minutos, com pelo menos 100 predicoes/h. Proxy de drift de dados/conceito: compare a amostra recente de textos com o conjunto de treino e avalie retreino."
+              runbook: "docs/MONITORING.md#vitoriumpredictiondistributionshift"
+          - exp_labels:
+              severity: warning
+              urgencia: normal
+            exp_annotations:
+              summary: "Distribuicao de predicoes deslocada na classe normal"
+              description: "Na ultima hora, a participacao da classe normal difere da prior de treino em 0.333 (absoluto, limite 0.15) ha mais de 30 minutos, com pelo menos 100 predicoes/h. Proxy de drift de dados/conceito: compare a amostra recente de textos com o conjunto de treino e avalie retreino."
+              runbook: "docs/MONITORING.md#vitoriumpredictiondistributionshift"
+
+  # Volume baixo (< 100 predicoes/h): nao dispara mesmo com distribuicao torta.
+  - interval: 1m
+    input_series:
+      - series: 'vitorium_predictions_total{job="vitorium-api", instance="api:8000", urgencia="urgente"}'
+        values: "0+1x60"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: VitoriumPredictionDistributionShift
+        exp_alerts: []
