@@ -153,19 +153,25 @@ do texto (seção 8).
 
 | Medição | Valor | Condições | Fonte |
 |---|---:|---|---|
-| API `/predict` p50 | 2,72 ms | 200 requisições, uvicorn local, sem container, backend sklearn | `models/latency_baseline.json` |
-| API `/predict` p95 | 3,07 ms | idem | `models/latency_baseline.json` |
-| API `/predict` p99 | 3,67 ms | idem | `models/latency_baseline.json` |
-| Inferência pura sklearn (média) | 0,673 ms | 300 chamadas, CPU, sem HTTP | `models/onnx_latency_comparison.json` |
-| Inferência pura ONNX Runtime (média) | 0,087 ms | 300 chamadas, CPU, sem HTTP | `models/onnx_latency_comparison.json` |
-| Speedup inferência pura | 7,70x | `labels_match: true` | `models/onnx_latency_comparison.json` |
-| API end-to-end p50, sklearn vs ONNX | {{E2E_P50_SKLEARN}} ms vs {{E2E_P50_ONNX}} ms | mesma metodologia de `scripts/bench_latency.py` | `models/api_latency_comparison.json` |
-| API end-to-end p95, sklearn vs ONNX | {{E2E_P95_SKLEARN}} ms vs {{E2E_P95_ONNX}} ms | idem | `models/api_latency_comparison.json` |
-| Speedup end-to-end p50 | {{E2E_SPEEDUP_P50}}x | idem | `models/api_latency_comparison.json` |
+| Inferência pura sklearn (média) | 1,084 ms | 300 chamadas intercaladas, 1 texto por chamada, CPU, sem HTTP | `models/onnx_latency_comparison.json` |
+| Inferência pura ONNX Runtime (média) | 0,265 ms | idem | `models/onnx_latency_comparison.json` |
+| Speedup inferência pura (média) | 4,09x | paridade com sklearn em 2.888 textos: 100% dos rótulos, máx. dif. de probabilidade 1,6e-7 | `models/onnx_latency_comparison.json` |
+| API end-to-end p50, sklearn vs ONNX | 3,401 ms vs 2,514 ms | 2 servidores uvicorn, 5 rodadas intercaladas × 300 req (warmup 50), mediana das rodadas | `models/api_latency_comparison.json` |
+| API end-to-end p95, sklearn vs ONNX | 3,115 ms (ONNX) vs 4,486 ms (sklearn) | idem | `models/api_latency_comparison.json` |
+| Speedup end-to-end p50 | 1,35x (−0,887 ms) | ONNX teve p50 menor nas 5 rodadas | `models/api_latency_comparison.json` |
+| Baseline da Etapa 1, API p50 / p95 / p99 (sklearn) | 2,72 / 3,07 / 3,67 ms | 200 req, set/2026, outra sessão de máquina: não comparar diretamente com as linhas acima | `models/latency_baseline.json` |
 
-Leitura honesta: o ganho de 7,70x vale para a chamada do modelo isolada. Na
+Leitura honesta: o ganho de 4,09x vale para a chamada do modelo isolada. Na
 API, a maior parte do tempo é FastAPI, validação Pydantic, serialização JSON
-e HTTP; por isso o ganho end-to-end é necessariamente menor que 7,70x. Todos
+e HTTP; por isso o ganho end-to-end (1,35x no p50) é bem menor.
+
+Errata: até a versão `v0.1.1` o repositório publicava 7,70x de speedup. Esse
+número foi medido com uma exportação ONNX padrão do skl2onnx que **não era
+equivalente** ao pipeline sklearn (descartava as stop words e mudava o
+padrão de tokens; ~1,2% dos rótulos divergiam no teste) e que dependia do
+locale `en_US.UTF-8`, ausente na imagem `python:3.11-slim`. O exportador foi
+reescrito (`src/training/onnx_export.py`), a exportação agora falha se a
+paridade quebrar, e os números foram medidos de novo. Todos
 os benchmarks rodaram em uma única máquina de desenvolvimento, com um único
 texto de exemplo (`scripts/bench_latency.py`, `SAMPLE_LAUDO`), e não
 representam carga concorrente nem ambiente de nuvem.

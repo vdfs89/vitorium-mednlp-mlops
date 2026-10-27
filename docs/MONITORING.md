@@ -253,8 +253,9 @@ baixo e o header alto, o gargalo não é o modelo.
    ou mais workers do uvicorn). A API é *stateless*, então isso é seguro.
 2. Regressão após deploy: rollback (seção 7).
 3. Inferência lenta: confirmar que o backend ONNX está ativo; a inferência
-   pura ONNX é 7,70x mais rápida que sklearn
-   (`models/onnx_latency_comparison.json`).
+   pura ONNX é 4,09x mais rápida que sklearn (média;
+   `models/onnx_latency_comparison.json`) e o `/health` informa o backend
+   ativo no campo `backend`.
 4. Textos muito longos (até 20.000 caracteres permitidos): avaliar reduzir
    `max_length` em `src/api/schemas.py`.
 

@@ -142,19 +142,14 @@ apenas o código.
 
 **Falar:**
 
-> Os resultados, todos medidos e com arquivo de origem. O modelo tem
-> acurácia de 61,9 por cento e F1 macro de 0,616, em 2.888 textos de teste.
-> A classe normal é a mais fraca, com F1 de 0,46, porque é uma categoria
-> genérica que se sobrepõe às outras. Na inferência pura, o ONNX levou 0,087
-> milissegundo contra 0,673 do scikit-learn, 7,7 vezes mais rápido. Na API de
-> ponta a ponta, o p50 foi de {{E2E_P50_SKLEARN}} para {{E2E_P50_ONNX}}
-> milissegundos, {{E2E_SPEEDUP_P50}} vezes. O ganho é menor que 7,7 porque,
-> na API, o tempo é dominado por HTTP e FastAPI, não pelo modelo.
-
-Se o speedup end-to-end ficar próximo de 1 (diferença dentro do ruído), não
-use a palavra "ganho": diga "na API, a diferença ficou dentro do ruído,
-porque o tempo é dominado por HTTP e FastAPI; o ONNX compensa quando a
-inferência é o gargalo, por exemplo em lote".
+> Os resultados, todos medidos e com arquivo de origem. Acurácia de 61,9 por
+> cento e F1 macro de 0,616 em 2.888 textos de teste; a classe normal é a mais
+> fraca, F1 de 0,46, por ser genérica. Na inferência pura, o ONNX é cerca de 4
+> vezes mais rápido, com os mesmos rótulos em todo o teste. Na API, o p50 caiu
+> de 3,4 para 2,5 milissegundos, 1,35 vez, porque ali o tempo é dominado por
+> HTTP. E uma nota de integridade: a primeira exportação ONNX marcava 7,7
+> vezes, mas não era equivalente ao modelo; corrigi e publiquei o número
+> real.
 
 ### Encerramento (4:25 a 4:45)
 
@@ -175,13 +170,14 @@ inferência é o gargalo, por exemplo em lote".
 | F1 macro 0,616 | `macro_f1`: 0,61576 | `models/metrics.json` |
 | 2.888 textos de teste | `test_rows`: 2888 | `models/metrics.json` |
 | F1 0,46 da classe `normal` | `normal.f1-score`: 0,46272 | `models/metrics.json` |
-| 0,087 ms vs 0,673 ms, 7,7x | `onnx_mean_ms` 0,0873; `sklearn_mean_ms` 0,6728; `speedup_x` 7,7 | `models/onnx_latency_comparison.json` |
-| p50 end-to-end sklearn vs ONNX e speedup | {{E2E_P50_SKLEARN}} ms; {{E2E_P50_ONNX}} ms; {{E2E_SPEEDUP_P50}}x | `models/api_latency_comparison.json` |
+| ~4x mais rápido (inferência pura) | `onnx_mean_ms` 0,2653; `sklearn_mean_ms` 1,0841; `speedup_x` 4,09 | `models/onnx_latency_comparison.json` |
+| mesmos rótulos nos 2.888 textos | `parity.label_agreement` 1,0; `parity.n_texts` 2888 | `models/onnx_latency_comparison.json` |
+| p50 de 3,4 para 2,5 ms, 1,35x | `sklearn.p50_ms` 3,401; `onnx.p50_ms` 2,514; `p50_x` 1,353 | `models/api_latency_comparison.json` |
+| 7,7x da exportação antiga | errata documentada | `docs/MODEL_CARD.md`, seção 5 |
 | Limiares 5% e 50 ms | regras de alerta | `docker/alerts.yml` |
 
-Atenção: o README ainda contém alguns valores de execuções antigas (por
-exemplo 5,44x, 2,57 ms e 3,64 s). No vídeo, use somente os valores desta
-tabela, que vêm dos arquivos JSON atuais.
+Use no vídeo somente os valores desta tabela; todos vêm dos arquivos JSON
+versionados.
 
 ## 4. Checklist antes de gravar
 
@@ -241,8 +237,9 @@ tabela, que vêm dos arquivos JSON atuais.
   execução demonstrada é local, com Docker Compose.
 - Que o modelo funciona com laudos em português. O corpus é 100% em inglês;
   texto em português cai quase sempre em `normal`.
-- Que o ONNX deixou "a API 7,7 vezes mais rápida". O 7,7x é só da inferência
-  pura; o número de ponta a ponta é o de `models/api_latency_comparison.json`.
+- Que o ONNX deixou "a API 4 vezes mais rápida". O ~4x é só da inferência
+  pura; na API o ganho de p50 é 1,35x (`models/api_latency_comparison.json`).
+  E nunca o 7,7x antigo, que veio de uma exportação não equivalente.
 - Que o modelo tem "alta acurácia" ou é "muito preciso". 61,9% em três
   classes balanceadas é um baseline honesto, não um resultado forte.
 - Que o monitoramento mede acurácia em produção ou "detecta drift". Ele
