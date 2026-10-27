@@ -20,3 +20,6 @@ venv/
 # Artefatos de transferencia/exportacao que nao pertencem ao repositorio
 *.zip
 *.bundle
+
+# Candidato de exportacao ONNX (promovido so apos a checagem de paridade)
+models/*.candidate

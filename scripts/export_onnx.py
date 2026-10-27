@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import platform
 import statistics
 import sys
@@ -128,16 +129,25 @@ def main() -> None:
     joblib_path = MODELS_DIR / "model.joblib"
     onnx_path = MODELS_DIR / "model.onnx"
 
+    # The candidate is written next to the target and only promoted (atomic
+    # os.replace) after the parity check passes: a failed export leaves the
+    # last approved models/model.onnx byte-for-byte untouched.
+    candidate_path = onnx_path.with_name(onnx_path.name + ".candidate")
     onnx_model = convert_pipeline_to_onnx(joblib.load(joblib_path))
-    onnx_path.write_bytes(onnx_model.SerializeToString())
-    logger.info("Wrote ONNX model to %s (%d bytes)", onnx_path, onnx_path.stat().st_size)
+    candidate_path.write_bytes(onnx_model.SerializeToString())
 
-    sk, ox = SklearnBackend(joblib_path), OnnxBackend(onnx_path)
+    sk, ox = SklearnBackend(joblib_path), OnnxBackend(candidate_path)
     texts, source = load_eval_texts()
     parity = check_parity(sk, ox, texts)
     logger.info("Parity on %s: %s", source, parity)
     if parity["rows_above_tolerance"] or parity["label_agreement"] < 1.0:
-        sys.exit("ONNX model is not equivalent to the sklearn pipeline; aborting.")
+        candidate_path.unlink(missing_ok=True)
+        sys.exit("ONNX candidate is not equivalent to the sklearn pipeline; "
+                 f"kept the previous {onnx_path.name} unchanged.")
+
+    os.replace(candidate_path, onnx_path)
+    logger.info("Promoted ONNX model to %s (%d bytes)", onnx_path, onnx_path.stat().st_size)
+    ox = OnnxBackend(onnx_path)
 
     if args.skip_bench:
         return
