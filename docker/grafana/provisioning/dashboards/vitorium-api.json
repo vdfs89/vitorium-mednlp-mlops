@@ -9,8 +9,16 @@
   "panels": [
     {
       "id": 1,
-      "title": "Total de Requisicoes",
+      "title": "Total de Requisicoes (todas as rotas)",
+      "description": "Soma de todas as rotas (/predict, /health, /metrics...). Nao e o numero de predicoes.",
       "type": "stat",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
       "targets": [
         {

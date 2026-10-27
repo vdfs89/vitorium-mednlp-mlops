@@ -4,6 +4,8 @@
 
 # VITORIUM
 
+[![CI](https://github.com/vdfs89/vitorium-mednlp-mlops/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vdfs89/vitorium-mednlp-mlops/actions/workflows/ci.yml?query=branch%3Amain)
+
 **End-to-End MLOps Pipeline for Medical Text Classification**
 Medical NLP · MLOps · Production ML
 
