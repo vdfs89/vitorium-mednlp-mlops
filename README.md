@@ -175,6 +175,19 @@ SLOs, diagnóstico e resposta para cada alerta estão no
 [playbook](docs/MONITORING.md). Não há Alertmanager configurado: os alertas
 aparecem em `http://localhost:9090/alerts`.
 
+**Dashboard "VITORIUM API" com tráfego real** (178 requisições ao `/predict`
+com textos variados: 60 `urgente`, 60 `atencao`, 58 `normal`, 0 erros):
+
+![Grafana — dashboard VITORIUM API com tráfego real](docs/evidence/grafana-dashboard-populated.png)
+
+**As 4 regras de alerta carregadas no Prometheus da stack** (inativas, sem
+incidente) e o target da API no ar:
+
+<p>
+  <img src="docs/evidence/prometheus-alerts-loaded.png" alt="Prometheus — 4 regras de alerta carregadas" width="48%">
+  <img src="docs/evidence/prometheus-targets-up.png" alt="Prometheus — target vitorium-api UP" width="48%">
+</p>
+
 ## Estrutura do repositório
 
 ```
