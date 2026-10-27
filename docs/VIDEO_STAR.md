@@ -73,14 +73,15 @@ segundos; depois a aba Actions com o último run verde, abrindo o grafo
 2. Navegador em <http://localhost:8000/docs>: `POST /predict` → *Try it out*
    → *Execute* com o exemplo pré-preenchido (dor torácica e troponina).
    Destacar `urgencia`, `probabilidades` e `latencia_ms` na resposta.
-3. `GET /health` → *Execute*, mostrando `model_loaded: true`.
+3. `GET /health` → *Execute*, mostrando `model_loaded: true` e `backend: onnx`.
 
 **Falar:**
 
 > Com um comando, o Docker Compose sobe a API, o Prometheus e o Grafana, e os
 > três estão saudáveis. No Swagger, envio um texto clínico em inglês para o
 > predict. A resposta traz a classe, as probabilidades das três classes e o
-> tempo de inferência. E o health confirma que o modelo está carregado.
+> tempo de inferência. E o health confirma que o modelo está carregado e
+> que a API está servindo a versão otimizada em ONNX.
 
 ### A3 — Monitoramento (2:05 a 2:45)
 
