@@ -10,3 +10,7 @@ pandas==2.3.3
 joblib==1.6.0
 prometheus-client==0.21.1
 onnxruntime==1.30.0
+# Transitivas fixadas na mesma versao do poetry.lock, para a imagem nao
+# divergir do ambiente onde as metricas e a paridade ONNX foram medidas.
+numpy==2.4.6
+scipy==1.17.1

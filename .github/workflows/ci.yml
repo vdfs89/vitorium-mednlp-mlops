@@ -69,6 +69,19 @@ jobs:
         with:
           name: model-artifact
           path: models/
+      - name: Build local e smoke test do container (backend ONNX)
+        run: |
+          docker build -t vitorium-api:ci .
+          docker run -d --name vitorium-ci -p 8000:8000 vitorium-api:ci
+          for i in $(seq 1 30); do curl -sf localhost:8000/health && break; sleep 1; done
+          echo
+          curl -sf localhost:8000/health | grep -q '"backend":"onnx"'
+          curl -sf -X POST localhost:8000/predict -H 'Content-Type: application/json' \
+            -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}'
+          echo
+      - name: Logs do container (so em falha)
+        if: failure()
+        run: docker logs vitorium-ci || true
       - name: Login no GitHub Container Registry
         if: github.event_name == 'push'
         uses: docker/login-action@v3
