@@ -33,14 +33,15 @@ Componentes envolvidos (todos neste repositório):
 | `vitorium_predictions_total` | Counter | `urgencia` | Predições emitidas por classe (`normal`, `atencao`, `urgente`) |
 | `up{job="vitorium-api"}` | Gauge (Prometheus) | — | 1 se o último scrape funcionou, 0 caso contrário |
 
-Os buckets do histograma são 5, 10, 25, 50, 100, 250, 500 ms e 1; 2,5; 5 s
-(`src/api/metrics.py`). Consequência prática: o limiar de 50 ms do SLO de
-latência coincide com uma borda de bucket, então a comparação "p95 acima ou
-abaixo de 50 ms" é precisa. Já valores pequenos (a API mede p95 de 3,07 ms
-localmente, `models/latency_baseline.json`) caem todos no primeiro bucket e
-o `histogram_quantile` apenas interpola dentro de 0 a 5 ms. Para números
-exatos de latência baixa, a fonte é o benchmark (`scripts/bench_latency.py`),
-não o Prometheus.
+Os buckets do histograma são 1; 2,5; 5; 10; 25; 50; 100; 250; 500 ms e 1;
+2,5; 5 s (`src/api/metrics.py`). Consequências práticas: o limiar de 50 ms do
+SLO de latência coincide com uma borda de bucket, então a comparação "p95
+acima ou abaixo de 50 ms" é precisa; e os buckets de 1 e 2,5 ms existem
+porque o `/predict` responde em ~2 ms (numa rodada local de 200 requisições,
+179 caíram entre 1 e 2,5 ms). Ainda assim, o `histogram_quantile` interpola
+dentro do bucket: para números exatos de latência, a fonte é o benchmark
+(`scripts/bench_latency.py`, `scripts/compare_backends.py`), não o
+Prometheus.
 
 **Lacunas conhecidas da instrumentação:**
 
@@ -126,7 +127,7 @@ Evidência com tráfego real: `docs/evidence/grafana-dashboard-populated.png`.
 
 | Painel | Consulta | Como ler |
 |---|---|---|
-| Total de Requisicoes | `sum(vitorium_requests_total)` | Volume acumulado desde o último start da API (o contador zera ao reiniciar o container) |
+| Total de Requisicoes (todas as rotas) | `sum(vitorium_requests_total)` | Volume acumulado desde o último start da API (o contador zera ao reiniciar o container) |
 | Latencia p95 (s) | `histogram_quantile(0.95, sum(rate(vitorium_request_latency_seconds_bucket[1m])) by (le, endpoint))` | p95 por rota em segundos; comparar a linha de `/predict` com 0,05 s |
 | Taxa de Erro do /predict (%) | `100 * (sum(rate(vitorium_requests_total{job="vitorium-api",endpoint="/predict",status_code=~"5.."}[5m])) or vector(0)) / sum(rate(vitorium_requests_total{job="vitorium-api",endpoint="/predict"}[5m]))` | Percentual de 5xx **só da inferência** em 5 min, numerador e denominador com o mesmo filtro (health checks e scrapes não diluem a taxa); o `or vector(0)` mostra 0% em vez de "No data" |
 | Requisicoes por Segundo | `sum(rate(vitorium_requests_total[1m])) by (endpoint)` | Carga por rota; inclui os scrapes de `/metrics` e o healthcheck |

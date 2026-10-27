@@ -30,7 +30,9 @@ REQUEST_LATENCY = Histogram(
     "vitorium_request_latency_seconds",
     "Latencia das requisicoes em segundos",
     ["method", "endpoint"],
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+    # 1 ms e 2,5 ms existem porque a API responde em ~2 ms: sem eles todo o
+    # trafego caia no primeiro bucket e o p95 do Grafana virava interpolacao.
+    buckets=(0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
 )
 
 PREDICTION_COUNT = Counter(
