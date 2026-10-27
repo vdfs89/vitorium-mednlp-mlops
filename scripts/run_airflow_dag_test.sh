@@ -19,8 +19,13 @@ AIRFLOW_VERSION="2.10.5"
 PY_MINOR="3.11"
 CONSTRAINTS_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PY_MINOR}.txt"
 # Pins do projeto (poetry.lock); instalados apos o Airflow, sem o arquivo de
-# constraints, porque o Airflow core nao depende deles.
-PROJECT_DEPS=("scikit-learn==1.9.1" "pandas==2.3.3" "joblib==1.6.0")
+# constraints, porque o Airflow core nao depende deles. A task export_onnx
+# precisa de skl2onnx/onnx/onnxruntime; protobuf fica em 4.25.8 porque e a
+# unica faixa aceita ao mesmo tempo pelo onnxruntime (>=4.25.8) e pelo
+# opentelemetry-proto do Airflow (<5) -- verificado com `uv pip check`.
+PROJECT_DEPS=("scikit-learn==1.9.1" "pandas==2.3.3" "joblib==1.6.0"
+              "skl2onnx==1.20.0" "onnx==1.22.0" "onnxruntime==1.30.0"
+              "protobuf==4.25.8")
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AIRFLOW_VENV="${AIRFLOW_VENV:-${PROJECT_ROOT}/.venv-airflow}"

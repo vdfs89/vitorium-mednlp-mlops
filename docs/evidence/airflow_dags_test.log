@@ -1,44 +1,61 @@
-# Evidencia: execucao REAL da DAG vitorium_train_pipeline (excerto limpo, conteudo nao alterado)
+# Evidencia: execucao REAL da DAG vitorium_train_pipeline (4 tasks) -- excerto limpo, conteudo nao alterado
 # Comando : airflow dags test vitorium_train_pipeline 2026-10-27   (reproduzivel com scripts/run_airflow_dag_test.sh)
-# Versoes : Apache Airflow 2.10.5 (pip + constraints-2.10.5/constraints-3.11.txt) | Python 3.11.17
-#           scikit-learn 1.9.1, pandas 2.3.3, joblib 1.6.0 (mesmos pins do poetry.lock)
+# Versoes : Apache Airflow 2.10.5 (constraints-2.10.5/constraints-3.11.txt) | Python 3.11.17
+#           scikit-learn 1.9.1, pandas 2.3.3, joblib 1.6.0, skl2onnx 1.20.0, onnx 1.22.0,
+#           onnxruntime 1.30.0, protobuf 4.25.8 (`uv pip check`: todos compativeis)
 # Data    : 2026-10-27 (timestamps do log em -0300; end_date em UTC)
-# Ambiente: venv isolado em sandbox Linux; `dags test` roda as tasks in-process (sem scheduler/webserver),
-#           metadata DB sqlite. Wall time total do comando: ~22.5 s. Tempo de fit nesta maquina: 12.31 s.
-# Removido do log bruto: aviso de graphviz, linhas duplicadas por handler e marcadores ::group::.
-# Nota: run_duration=44258s abaixo e artefato do `dags test` (run_start_date = data logica 00:00 UTC).
+# Ambiente: venv isolado em sandbox Linux (2 vCPU); `dags test` roda as tasks in-process (sem
+#           scheduler/webserver), metadata DB sqlite. Wall time total do comando: 19.9 s.
+# Resultado: 4/4 tasks success; metricas identicas as versionadas em models/metrics.json
+#           (accuracy 0.6194598337950139, macro_f1 0.6157585446637531); export_onnx com paridade
+#           de 100% dos rotulos nas 2.888 amostras de teste (max |dif. prob.| 1.6e-07).
+# Removido do log bruto: aviso de graphviz, marcadores ::group::, linhas em branco e as linhas
+#           duplicadas pelo segundo handler de log (mesma mensagem com outro formato de data).
+# Anonimizado: o caminho absoluto do sandbox foi trocado por <repo>.
+# Nota: run_duration no fim do log e artefato do `dags test` (run_start_date = data logica 00:00 UTC).
 #
 $ airflow version
 2.10.5
 $ airflow dags list-import-errors
 No data found
 $ airflow dags test vitorium_train_pipeline 2026-10-27
-[2026-10-27T09:17:18.150-0300] {dagbag.py:588} INFO - Filling up the DagBag from /home/claude/work/wt-airflow/dags
-[2026-10-27T09:17:18.202-0300] {dag.py:4435} INFO - dagrun id: vitorium_train_pipeline
-[2026-10-27T09:17:18.212-0300] {dag.py:4451} INFO - created dagrun <DagRun vitorium_train_pipeline @ 2026-10-27 00:00:00+00:00: manual__2026-10-27T00:00:00+00:00, state:running, queued_at: None. externally triggered: False>
-[2026-10-27T09:17:18.236-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=ingest_data map_index=-1
-[2026-10-27T09:17:18.236-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.ingest_data manual__2026-10-27T00:00:00+00:00 [scheduled]>
-[2026-10-27T09:17:19.819-0300] {preprocess.py:70} INFO - Loaded 11550 rows from /home/claude/work/wt-airflow/data/raw/medical_tc_train.csv
-[2026-10-27T09:17:19.927-0300] {preprocess.py:70} INFO - Loaded 2888 rows from /home/claude/work/wt-airflow/data/raw/medical_tc_test.csv
-[2026-10-27T09:17:20.441-0300] {preprocess.py:105} INFO - train urgency distribution: {'urgente': 0.345, 'normal': 0.333, 'atencao': 0.323}
-[2026-10-27T09:17:20.442-0300] {preprocess.py:105} INFO - test urgency distribution: {'urgente': 0.345, 'normal': 0.333, 'atencao': 0.323}
-[2026-10-27T09:17:20.443-0300] {preprocess.py:107} INFO - Wrote 11550 train rows and 2888 test rows to /home/claude/work/wt-airflow/data/processed
-[2026-10-27T09:17:20.445-0300] {python.py:240} INFO - Done. Returned value was: None
-[2026-10-27T09:17:20.455-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=ingest_data, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T121720
-[2026-10-27T09:17:20.473-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=ingest_data map_index=-1
-[2026-10-27T09:17:20.493-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=train_model map_index=-1
-[2026-10-27T09:17:20.493-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.train_model manual__2026-10-27T00:00:00+00:00 [scheduled]>
-[2026-10-27T09:17:36.265-0300] {train.py:74} INFO - Trained in 12.31s on 11550 rows
-[2026-10-27T09:17:36.835-0300] {train.py:81} INFO - Test accuracy: 0.6195 | macro F1: 0.6158
-[2026-10-27T09:17:37.286-0300] {train.py:97} INFO - Saved model to /home/claude/work/wt-airflow/models/model.joblib and metrics to /home/claude/work/wt-airflow/models/metrics.json
-[2026-10-27T09:17:37.295-0300] {python.py:240} INFO - Done. Returned value was: {'accuracy': 0.6194598337950139, 'macro_f1': 0.6157585446637531}
-[2026-10-27T09:17:37.415-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=train_model, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T121737
-[2026-10-27T09:17:37.577-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=train_model map_index=-1
-[2026-10-27T09:17:37.873-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=save_model_report map_index=-1
-[2026-10-27T09:17:37.874-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.save_model_report manual__2026-10-27T00:00:00+00:00 [scheduled]>
-[2026-10-27T09:17:38.302-0300] {train_pipeline_dag.py:83} INFO - VITORIUM retrain complete — accuracy=0.6195 macro_f1=0.6158
-[2026-10-27T09:17:38.302-0300] {python.py:240} INFO - Done. Returned value was: None
-[2026-10-27T09:17:38.306-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=save_model_report, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T121738
-[2026-10-27T09:17:38.485-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=save_model_report map_index=-1
-[2026-10-27T09:17:38.490-0300] {dagrun.py:854} INFO - Marking run <DagRun vitorium_train_pipeline @ 2026-10-27 00:00:00+00:00: manual__2026-10-27T00:00:00+00:00, state:running, queued_at: None. externally triggered: False> successful
-[2026-10-27T09:17:38.491-0300] {dagrun.py:905} INFO - DagRun Finished: dag_id=vitorium_train_pipeline, execution_date=2026-10-27 00:00:00+00:00, run_id=manual__2026-10-27T00:00:00+00:00, run_start_date=2026-10-27 00:00:00+00:00, run_end_date=2026-10-27 12:17:38.491210+00:00, run_duration=44258.49121, state=success, external_trigger=False, run_type=manual, data_interval_start=2026-10-18 00:00:00+00:00, data_interval_end=2026-10-25 00:00:00+00:00, dag_hash=None
+[2026-10-27T09:31:56.985-0300] {dagbag.py:588} INFO - Filling up the DagBag from <repo>/dags
+[2026-10-27T09:31:57.030-0300] {dag.py:4435} INFO - dagrun id: vitorium_train_pipeline
+[2026-10-27T09:31:57.039-0300] {dag.py:4451} INFO - created dagrun <DagRun vitorium_train_pipeline @ 2026-10-27 00:00:00+00:00: manual__2026-10-27T00:00:00+00:00, state:running, queued_at: None. externally triggered: False>
+[2026-10-27T09:31:57.062-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=ingest_data map_index=-1
+[2026-10-27T09:31:57.063-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.ingest_data manual__2026-10-27T00:00:00+00:00 [scheduled]>
+[2026-10-27T09:31:57.097-0300] {taskinstance.py:3134} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='vitorium' AIRFLOW_CTX_DAG_ID='vitorium_train_pipeline' AIRFLOW_CTX_TASK_ID='ingest_data' AIRFLOW_CTX_EXECUTION_DATE='2026-10-27T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2026-10-27T00:00:00+00:00'
+[2026-10-27T09:31:57.629-0300] {preprocess.py:70} INFO - Loaded 11550 rows from <repo>/data/raw/medical_tc_train.csv
+[2026-10-27T09:31:57.720-0300] {preprocess.py:70} INFO - Loaded 2888 rows from <repo>/data/raw/medical_tc_test.csv
+[2026-10-27T09:31:58.072-0300] {preprocess.py:105} INFO - train urgency distribution: {'urgente': 0.345, 'normal': 0.333, 'atencao': 0.323}
+[2026-10-27T09:31:58.073-0300] {preprocess.py:105} INFO - test urgency distribution: {'urgente': 0.345, 'normal': 0.333, 'atencao': 0.323}
+[2026-10-27T09:31:58.073-0300] {preprocess.py:107} INFO - Wrote 11550 train rows and 2888 test rows to <repo>/data/processed
+[2026-10-27T09:31:58.075-0300] {python.py:240} INFO - Done. Returned value was: None
+[2026-10-27T09:31:58.080-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=ingest_data, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T123158
+[2026-10-27T09:31:58.109-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=ingest_data map_index=-1
+[2026-10-27T09:31:58.122-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=train_model map_index=-1
+[2026-10-27T09:31:58.122-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.train_model manual__2026-10-27T00:00:00+00:00 [scheduled]>
+[2026-10-27T09:31:58.138-0300] {taskinstance.py:3134} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='vitorium' AIRFLOW_CTX_DAG_ID='vitorium_train_pipeline' AIRFLOW_CTX_TASK_ID='train_model' AIRFLOW_CTX_EXECUTION_DATE='2026-10-27T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2026-10-27T00:00:00+00:00'
+[2026-10-27T09:32:06.588-0300] {train.py:74} INFO - Trained in 6.94s on 11550 rows
+[2026-10-27T09:32:07.070-0300] {train.py:81} INFO - Test accuracy: 0.6195 | macro F1: 0.6158
+[2026-10-27T09:32:07.328-0300] {train.py:97} INFO - Saved model to <repo>/models/model.joblib and metrics to <repo>/models/metrics.json
+[2026-10-27T09:32:07.334-0300] {python.py:240} INFO - Done. Returned value was: {'accuracy': 0.6194598337950139, 'macro_f1': 0.6157585446637531}
+[2026-10-27T09:32:07.351-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=train_model, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T123207
+[2026-10-27T09:32:07.359-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=train_model map_index=-1
+[2026-10-27T09:32:07.371-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=export_onnx map_index=-1
+[2026-10-27T09:32:07.371-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.export_onnx manual__2026-10-27T00:00:00+00:00 [scheduled]>
+[2026-10-27T09:32:07.387-0300] {taskinstance.py:3134} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='vitorium' AIRFLOW_CTX_DAG_ID='vitorium_train_pipeline' AIRFLOW_CTX_TASK_ID='export_onnx' AIRFLOW_CTX_EXECUTION_DATE='2026-10-27T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2026-10-27T00:00:00+00:00'
+INFO:__main__:Wrote ONNX model to <repo>/models/model.onnx (726064 bytes)
+INFO:__main__:Parity on data/raw/medical_tc_test.csv (all rows): {'n_texts': 2888, 'max_abs_proba_diff': 1.5981484491334186e-07, 'rows_above_tolerance': 0, 'tolerance': 1e-05, 'label_agreement': 1.0}
+[2026-10-27T09:32:14.817-0300] {python.py:240} INFO - Done. Returned value was: None
+[2026-10-27T09:32:14.821-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=export_onnx, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T123214
+[2026-10-27T09:32:14.834-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=export_onnx map_index=-1
+[2026-10-27T09:32:14.844-0300] {dag.py:4396} INFO - [DAG TEST] starting task_id=save_model_report map_index=-1
+[2026-10-27T09:32:14.845-0300] {dag.py:4399} INFO - [DAG TEST] running task <TaskInstance: vitorium_train_pipeline.save_model_report manual__2026-10-27T00:00:00+00:00 [scheduled]>
+[2026-10-27T09:32:14.863-0300] {taskinstance.py:3134} INFO - Exporting env vars: AIRFLOW_CTX_DAG_OWNER='vitorium' AIRFLOW_CTX_DAG_ID='vitorium_train_pipeline' AIRFLOW_CTX_TASK_ID='save_model_report' AIRFLOW_CTX_EXECUTION_DATE='2026-10-27T00:00:00+00:00' AIRFLOW_CTX_TRY_NUMBER='1' AIRFLOW_CTX_DAG_RUN_ID='manual__2026-10-27T00:00:00+00:00'
+[2026-10-27T09:32:14.864-0300] {train_pipeline_dag.py:105} INFO - VITORIUM retrain complete — accuracy=0.6195 macro_f1=0.6158
+[2026-10-27T09:32:14.864-0300] {python.py:240} INFO - Done. Returned value was: None
+[2026-10-27T09:32:14.866-0300] {taskinstance.py:353} INFO - Marking task as SUCCESS. dag_id=vitorium_train_pipeline, task_id=save_model_report, run_id=manual__2026-10-27T00:00:00+00:00, execution_date=20261027T000000, start_date=, end_date=20261027T123214
+[2026-10-27T09:32:14.874-0300] {dag.py:4410} INFO - [DAG TEST] end task task_id=save_model_report map_index=-1
+[2026-10-27T09:32:14.877-0300] {dagrun.py:854} INFO - Marking run <DagRun vitorium_train_pipeline @ 2026-10-27 00:00:00+00:00: manual__2026-10-27T00:00:00+00:00, state:running, queued_at: None. externally triggered: False> successful
+[2026-10-27T09:32:14.878-0300] {dagrun.py:905} INFO - DagRun Finished: dag_id=vitorium_train_pipeline, execution_date=2026-10-27 00:00:00+00:00, run_id=manual__2026-10-27T00:00:00+00:00, run_start_date=2026-10-27 00:00:00+00:00, run_end_date=2026-10-27 12:32:14.877992+00:00, run_duration=45134.877992, state=success, external_trigger=False, run_type=manual, data_interval_start=2026-10-18 00:00:00+00:00, data_interval_end=2026-10-25 00:00:00+00:00, dag_hash=None

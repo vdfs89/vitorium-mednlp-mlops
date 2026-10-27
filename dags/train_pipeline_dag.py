@@ -1,10 +1,15 @@
 """Airflow DAG — VITORIUM training/retraining pipeline.
 
-Three tasks, matching the rubric ("DAG funcional realizando as etapas de
-ingestao e treino"):
+Four tasks, matching the rubric ("DAG funcional realizando as etapas de
+ingestao e treino") plus the serving artifact the API actually uses:
     ingest_data       -> load and preprocess the raw corpus into data/processed/
     train_model       -> fit the TF-IDF+LogisticRegression pipeline
+    export_onnx       -> re-export models/model.onnx from the new model.joblib and
+                         fail the run if the ONNX graph is not equivalent to sklearn
     save_model_report -> log the run's metrics (models/metrics.json) as its summary
+
+Without export_onnx a retrain would update model.joblib while the API (which
+serves ONNX by default) kept answering with the previous model.onnx.
 
 This DAG calls the exact same functions used by `python -m src.training.*`
 (no duplicated logic) so a local run and an Airflow run stay in sync.
@@ -17,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -78,6 +84,22 @@ def vitorium_train_pipeline() -> None:
         return {"accuracy": metrics["accuracy"], "macro_f1": metrics["macro_f1"]}
 
     @task
+    def export_onnx() -> None:
+        """Re-export model.onnx from the freshly trained model.joblib.
+
+        Runs scripts/export_onnx.py as a subprocess (it owns its CLI parsing) with
+        --skip-bench: it writes models/model.onnx and checks parity against the
+        sklearn pipeline on the whole test split, exiting non-zero on any
+        mismatch -- which fails this task and keeps a non-equivalent artifact
+        from being reported as a successful retrain.
+        """
+        subprocess.run(
+            [sys.executable, str(PROJECT_ROOT / "scripts" / "export_onnx.py"), "--skip-bench"],
+            check=True,
+            cwd=PROJECT_ROOT,
+        )
+
+    @task
     def save_model_report(metrics: dict[str, float]) -> None:
         """Log the headline metrics so they appear in the Airflow task log."""
         logger.info(
@@ -88,8 +110,9 @@ def vitorium_train_pipeline() -> None:
 
     ingest = ingest_data()
     metrics = train_model()
-    save_model_report(metrics)
-    ingest >> metrics
+    onnx_export = export_onnx()
+    report = save_model_report(metrics)
+    ingest >> metrics >> onnx_export >> report
 
 
 vitorium_train_pipeline()

@@ -1,9 +1,9 @@
 # airflow tasks states-for-dag-run vitorium_train_pipeline manual__2026-10-27T00:00:00+00:00
-# Airflow 2.10.5, consultado no metadata DB (sqlite) logo apos o 'airflow dags test' de 2026-10-27.
+# Airflow 2.10.5, consultado no metadata DB (sqlite) logo apos o 'airflow dags test' de 2026-10-27 (DAG com 4 tasks).
 # start_date vazio e comportamento do 'dags test' (tasks rodam in-process, sem registro de inicio).
-
 dag_id                  | execution_date            | task_id           | state   | start_date | end_date                        
 ========================+===========================+===================+=========+============+=================================
-vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | ingest_data       | success |            | 2026-10-27T12:17:20.455292+00:00
-vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | train_model       | success |            | 2026-10-27T12:17:37.415598+00:00
-vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | save_model_report | success |            | 2026-10-27T12:17:38.306441+00:00
+vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | ingest_data       | success |            | 2026-10-27T12:31:58.080573+00:00
+vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | train_model       | success |            | 2026-10-27T12:32:07.350989+00:00
+vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | export_onnx       | success |            | 2026-10-27T12:32:14.821140+00:00
+vitorium_train_pipeline | 2026-10-27T00:00:00+00:00 | save_model_report | success |            | 2026-10-27T12:32:14.866732+00:00
