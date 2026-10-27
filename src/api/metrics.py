@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request, Response
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
+    Gauge,
     Histogram,
     generate_latest,
 )
@@ -36,6 +37,20 @@ PREDICTION_COUNT = Counter(
     "Total de predicoes por classe de urgencia",
     ["urgencia"],
 )
+
+# Info-style gauge (value is always 1): lets Grafana/alerts see which inference
+# engine a replica is serving, e.g. after a silent ONNX -> sklearn fallback.
+MODEL_INFO = Gauge(
+    "vitorium_model_info",
+    "Backend de inferencia ativo (valor sempre 1)",
+    ["backend"],
+)
+
+
+def set_model_info(backend: str) -> None:
+    """Expose exactly one active backend label (clears the previous one)."""
+    MODEL_INFO.clear()
+    MODEL_INFO.labels(backend=backend).set(1)
 
 
 def install_metrics_middleware(app: FastAPI) -> None:

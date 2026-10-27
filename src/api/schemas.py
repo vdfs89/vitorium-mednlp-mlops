@@ -44,3 +44,6 @@ class PredictionOutput(BaseModel):
 class HealthOutput(BaseModel):
     status: str
     model_loaded: bool
+    backend: str = Field(
+        ..., description="Motor de inferencia ativo: onnx | sklearn | none (sem modelo)."
+    )
