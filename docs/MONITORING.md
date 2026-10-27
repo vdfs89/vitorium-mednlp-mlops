@@ -28,7 +28,7 @@ Componentes envolvidos (todos neste repositório):
 
 | Métrica | Tipo | Labels | O que representa |
 |---|---|---|---|
-| `vitorium_requests_total` | Counter | `method`, `endpoint`, `status_code` | Requisições atendidas, por rota e código HTTP |
+| `vitorium_requests_total` | Counter | `method`, `endpoint`, `status_code` | Requisições atendidas, por rota e código HTTP (inclusive 500 de exceção não tratada) |
 | `vitorium_request_latency_seconds` | Histogram | `method`, `endpoint` | Latência medida no middleware (inclui validação, inferência e serialização; não inclui rede do cliente) |
 | `vitorium_predictions_total` | Counter | `urgencia` | Predições emitidas por classe (`normal`, `atencao`, `urgente`) |
 | `up{job="vitorium-api"}` | Gauge (Prometheus) | — | 1 se o último scrape funcionou, 0 caso contrário |
@@ -44,11 +44,15 @@ não o Prometheus.
 
 **Lacunas conhecidas da instrumentação:**
 
-- Exceções não tratadas dentro de uma rota sobem por `call_next` antes de o
-  middleware incrementar o contador, então um HTTP 500 gerado por exceção
-  não tratada **pode não aparecer** em `vitorium_requests_total`. O 503 de
-  "modelo não carregado" é um `HTTPException` e é contado normalmente. Para
-  500 inesperados, a fonte de verdade são os logs do container.
+- Exceções não tratadas são contadas: o middleware registra contagem e
+  latência num bloco `finally`, como status 500, e relança a exceção para o
+  Starlette responder e logar (teste:
+  `tests/test_hardening.py::test_unhandled_inference_error_is_counted_once_as_500`).
+  O stack trace continua só nos logs do container.
+- O label `endpoint` é o **template da rota** (`/predict`, `/health`,
+  `/metrics`), nunca a URL crua; caminhos desconhecidos viram um único
+  `endpoint="unmatched"`, então varreduras de URL não criam séries novas
+  (teste: `test_unknown_paths_share_a_single_metric_label`).
 - Respostas 4xx (por exemplo 422 de validação) são contadas, mas não entram
   na taxa de erro, por definição.
 - `/health` e `/metrics` também passam pelo middleware. Toda consulta de
@@ -124,7 +128,7 @@ Evidência com tráfego real: `docs/evidence/grafana-dashboard-populated.png`.
 |---|---|---|
 | Total de Requisicoes | `sum(vitorium_requests_total)` | Volume acumulado desde o último start da API (o contador zera ao reiniciar o container) |
 | Latencia p95 (s) | `histogram_quantile(0.95, sum(rate(vitorium_request_latency_seconds_bucket[1m])) by (le, endpoint))` | p95 por rota em segundos; comparar a linha de `/predict` com 0,05 s |
-| Taxa de Erro (%) | `100 * (sum(rate(vitorium_requests_total{status_code=~"5.."}[1m])) or vector(0)) / sum(rate(vitorium_requests_total[1m]))` | Percentual de 5xx no último minuto; o `or vector(0)` mostra 0% em vez de "No data" |
+| Taxa de Erro do /predict (%) | `100 * (sum(rate(vitorium_requests_total{job="vitorium-api",endpoint="/predict",status_code=~"5.."}[5m])) or vector(0)) / sum(rate(vitorium_requests_total{job="vitorium-api",endpoint="/predict"}[5m]))` | Percentual de 5xx **só da inferência** em 5 min, numerador e denominador com o mesmo filtro (health checks e scrapes não diluem a taxa); o `or vector(0)` mostra 0% em vez de "No data" |
 | Requisicoes por Segundo | `sum(rate(vitorium_requests_total[1m])) by (endpoint)` | Carga por rota; inclui os scrapes de `/metrics` e o healthcheck |
 | Predicoes por Classe de Urgencia | `sum(vitorium_predictions_total) by (urgencia)` | Contagem acumulada por classe; base visual para o alerta de distribuição |
 
@@ -188,7 +192,7 @@ triagem, que precisa saber que o apoio automático está indisponível.
 ### VitoriumHighErrorRate
 
 **Sintomas.** Mais de 5% de respostas 5xx por 5 minutos; painel "Taxa de
-Erro (%)" acima de 5; clientes recebendo 500 ou 503.
+Erro do /predict (%)" acima de 5; clientes recebendo 500 ou 503.
 
 **Diagnóstico.**
 
@@ -205,9 +209,8 @@ PromQL, para ver qual código e qual rota:
 sum by (endpoint, status_code) (rate(vitorium_requests_total{status_code=~"5.."}[5m]))
 ```
 
-Lembre a lacuna da seção 1.1: 500 vindos de exceção não tratada podem não
-estar no contador; se o painel estiver limpo mas o cliente reclama de erro,
-a fonte é o log.
+500 de exceção não tratada aparecem no contador (seção 1.1); o stack trace
+para o diagnóstico está no log do container.
 
 **Mitigação.**
 

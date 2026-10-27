@@ -271,10 +271,10 @@ modeladas.
 
 | Cenário | Comportamento esperado | Mitigação |
 |---|---|---|
-| Texto com menos de 10 caracteres | HTTP 422 (validação `min_length=10` em `src/api/schemas.py`) | Já mitigado pela validação. 4xx não conta como erro no SLO de 5xx |
+| Texto com menos de 10 caracteres (contados após remover espaços das pontas) | HTTP 422 (`min_length=10` + `strip` em `src/api/schemas.py`) | Já mitigado pela validação. 4xx não conta como erro no SLO de 5xx |
 | Texto com mais de 20.000 caracteres | HTTP 422 (`max_length=20_000`) | Cliente deve truncar ou resumir antes de enviar |
 | Texto curto mas válido ("chest pain", 10 caracteres) | Aceito; predição baseada em 1 ou 2 termos, instável e pouco informativa | Exigir comprimento mínimo maior ou devolver um aviso de baixa evidência quando houver poucos termos no vocabulário |
-| Só espaços (10 ou mais) | Aceito pelo schema; vetor TF-IDF zerado; sempre `normal` (seção 7.3) | Validar `texto.strip()` no schema; rejeitar entrada sem conteúdo |
+| Só espaços, pontuação ou números | HTTP 422: o schema remove espaços e exige ao menos uma letra (`tests/test_hardening.py`) | Mitigado. Texto com letras mas fora do vocabulário (ex.: português) continua aceito; ver linha abaixo e seção 7.3 |
 | Texto em português ou outro idioma | HTTP 200 com predição quase sempre `normal`, sem relação com o conteúdo (seção 7.3) | Detectar idioma e recusar (ou sinalizar) entradas não inglesas; retreinar com corpus em português antes de qualquer uso local |
 | Texto com várias condições (ex.: paciente oncológico com AVC) | Uma única classe; a probabilidade se divide entre classes e a `confianca` cai | Expor as três probabilidades (a API já expõe) e tratar `confianca` baixa como "revisão humana"; modelo multirrótulo seria a solução estrutural |
 | Erros de digitação ("myocardail") | Termo com erro vira token fora do vocabulário e é ignorado | Normalização ortográfica ou n-gramas de caracteres em uma versão futura |

@@ -232,7 +232,7 @@ make compose-up               # docker compose --env-file .env -f docker/docker-
 make install                  # poetry install (grupos main + dev)
 make train                    # preprocess + treino (dados em data/raw/)
 make export-onnx              # model.onnx + paridade + benchmark de inferência pura
-make test                     # 15 testes
+make test                     # 23 testes
 make lint
 make compare-backends         # benchmark end-to-end sklearn vs ONNX
 make airflow-test             # executa a DAG com Airflow num venv isolado

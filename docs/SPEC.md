@@ -32,7 +32,7 @@ com a evidência citada; nada aqui é só "escrito".
 | Monitoramento com alertas | `docker/alerts.yml` + `docs/MONITORING.md` | **Verificado**: `promtool check rules` (9 regras) e `promtool test rules` passando (`docs/evidence/promtool_hadolint.txt`); as 4 regras carregadas no Prometheus real da stack, todas inativas sem incidente (`docs/evidence/prometheus-alerts-loaded.png`); playbook por alerta |
 | Histórico de commits organizado | `git log` | Commits semânticos (Conventional Commits) a partir da `v0.1.1`, um por unidade de trabalho; os 3 primeiros commits são o scaffold inicial |
 | Scikit-Learn (modelo leve) | `src/training/train.py` | **Verificado**: acc 0,6195 / macro F1 0,6158 (`models/metrics.json`), determinístico (re-treino no Airflow e local reproduz os mesmos valores) |
-| FastAPI (`/predict`, `/health`) | `src/api/main.py`, `src/api/backends.py` | **Verificado**: 15 testes (`tests/`), incluindo integração, paridade entre backends e `/health` 503 sem modelo |
+| FastAPI (`/predict`, `/health`) | `src/api/main.py`, `src/api/backends.py` | **Verificado**: 23 testes (`tests/`), incluindo integração, paridade entre backends, `/health` 503 sem modelo e regressões da revisão técnica (`tests/test_hardening.py`) |
 | `prometheus_client` instrumentando latência + contagem | `src/api/metrics.py` | **Verificado**: middleware real, testado; inclui `vitorium_model_info{backend}` |
 | Otimização de latência (ONNX/quantização/pruning) | `src/training/onnx_export.py`, `scripts/export_onnx.py`, `src/api/backends.py` | **Verificado**: API serve ONNX por padrão; paridade com sklearn em 100% dos 2.888 textos de teste (máx. dif. 1,6e-7); inferência pura 4,09x mais rápida (`models/onnx_latency_comparison.json`) |
 | Comparação de latência original vs. otimizado | `scripts/compare_backends.py` → `models/api_latency_comparison.json` | **Verificado**: end-to-end via HTTP, 5 rodadas intercaladas × 300 req: p50 3,401 → 2,514 ms (1,35x), p95 4,486 → 3,115 ms |
@@ -68,8 +68,11 @@ conversão padrão do skl2onnx não reproduzia o `TfidfVectorizer` com
 `stop_words="english"` (35 de 2.888 rótulos divergentes, `docs/evidence/onnx_stock_export_parity.json`) e dependia do
 locale `en_US.UTF-8`. `src/training/onnx_export.py` monta o grafo
 equivalente e `scripts/export_onnx.py` aborta se qualquer texto do teste
-divergir além de 1e-5. A mesma checagem roda como task da DAG, então um
-retreino nunca publica um ONNX não equivalente.
+divergir além de 1e-5. O candidato é gravado em `model.onnx.candidate` e só
+substitui o `model.onnx` aprovado (troca atômica, `os.replace`) depois da
+checagem; uma exportação reprovada deixa o modelo anterior intacto (teste:
+`test_failed_onnx_export_keeps_the_approved_model`). A mesma checagem roda
+como task da DAG e no CI.
 
 ## 4. Convenções de código (clean code)
 
@@ -80,7 +83,7 @@ retreino nunca publica um ONNX não equivalente.
   outros projetos do portfólio.
 - `ruff check .` limpo antes de qualquer commit (rodar `make lint`).
 - Testes não são decorativos: cada teste em `tests/` falha de verdade se o
-  comportamento quebrar (15 testes, rodados localmente e no CI).
+  comportamento quebrar (23 testes, rodados localmente e no CI).
 - Um commit por unidade de trabalho coerente (uma etapa, uma correção, uma
   feature) — não empilhar Etapas 2-4 num commit só.
 
