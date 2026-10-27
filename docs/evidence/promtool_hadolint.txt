@@ -1,0 +1,13 @@
+# Evidencia: validacao das regras de alerta (promtool) e do Dockerfile (hadolint)
+# Data: 2026-10-27T12:46Z | promtool, version 2.55.1 (branch: HEAD, revision: 6d7569113f1ca814f1e149f74176656540043b8d) | hadolint 2.12.0
+# Reproduzir: make test-alerts (promtool via imagem oficial) e hadolint Dockerfile
+
+$ promtool check rules docker/alerts.yml
+Checking docker/alerts.yml
+  SUCCESS: 9 rules found
+
+$ cd docker && promtool test rules alerts_test.yml
+  SUCCESS
+
+$ hadolint Dockerfile
+(exit 0: sem achados)

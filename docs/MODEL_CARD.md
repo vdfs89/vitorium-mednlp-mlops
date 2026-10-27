@@ -21,8 +21,8 @@ ao lado.
 | Classificador | `LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)` | `src/training/train.py` |
 | Seed | 42 | `models/metrics.json` (`random_seed`) |
 | Tempo de treino | 3,79 s (3,785 s) em CPU | `models/metrics.json` (`train_seconds`) |
-| Artefatos | `models/model.joblib` (sklearn) e `models/model.onnx` (exportado via `skl2onnx`, `zipmap=False`) | `models/`, `scripts/export_onnx.py` |
-| Versão do artefato | Artefato versionado no commit `550099e` (2026-09-17), coberto pelas tags `v0.1.0`/`v0.1.1`. A API se anuncia como `version="0.1.0"` | `git log -- models/`, `src/api/main.py`, `docs/VERSIONING.md` |
+| Artefatos | `models/model.joblib` (sklearn) e `models/model.onnx` (grafo equivalente montado por `src/training/onnx_export.py`; paridade checada em todo o teste) | `models/`, `scripts/export_onnx.py` |
+| Versão do artefato | `model.joblib` e `metrics.json` inalterados desde o commit inicial (2026-09-17); `model.onnx` reexportado em 2026-10-27 com o exportador equivalente (próxima tag: `v0.4.0`) | `git log -- models/`, `docs/VERSIONING.md` |
 | Biblioteca | scikit-learn 1.9.1 na imagem Docker | `requirements.txt` |
 | Licença dos dados | CC BY-SA 3.0 (herdada do corpus) | `README.md` |
 | Responsável | Vitor Diogo Fonseca da Silva (projeto individual) | `pyproject.toml` (`authors`) |
@@ -171,10 +171,16 @@ equivalente** ao pipeline sklearn (descartava as stop words e mudava o
 padrão de tokens; ~1,2% dos rótulos divergiam no teste) e que dependia do
 locale `en_US.UTF-8`, ausente na imagem `python:3.11-slim`. O exportador foi
 reescrito (`src/training/onnx_export.py`), a exportação agora falha se a
-paridade quebrar, e os números foram medidos de novo. Todos
-os benchmarks rodaram em uma única máquina de desenvolvimento, com um único
-texto de exemplo (`scripts/bench_latency.py`, `SAMPLE_LAUDO`), e não
-representam carga concorrente nem ambiente de nuvem.
+paridade quebrar, e os números foram medidos de novo. A auditoria da
+exportação antiga está em `docs/evidence/onnx_stock_export_parity.json`
+(35 de 2.888 rótulos divergentes, máx. dif. de probabilidade 0,136;
+reproduzível com `scripts/audit_stock_onnx_export.py`).
+
+Escopo dos benchmarks: todos rodaram em uma única máquina de
+desenvolvimento, sem carga concorrente nem ambiente de nuvem. Os de API
+(end-to-end e baseline da Etapa 1) usam um único texto de exemplo
+(`SAMPLE_LAUDO` em `scripts/bench_latency.py`); o de inferência pura percorre
+os textos do conjunto de avaliação.
 
 ## 6. Considerações éticas
 
@@ -274,29 +280,33 @@ modeladas.
 | Erros de digitação ("myocardail") | Termo com erro vira token fora do vocabulário e é ignorado | Normalização ortográfica ou n-gramas de caracteres em uma versão futura |
 | Abreviações clínicas (MI, CHF, CVA, AVC, IAM) | Só contam se aparecerem com `min_df >= 2` no corpus de treino; siglas em português nunca contam | Dicionário de expansão de siglas no pré-processamento |
 | Negação ("no evidence of infarction") | Termos de infarto pesam para `urgente` mesmo negados | Detecção de negação (ex.: regras NegEx) ou modelo contextual |
-| Modelo ausente no container | `/predict` responde 503 e `/health` mostra `model_loaded: false` (`src/api/main.py`) | Coberto pelo alerta de taxa de erro; ver playbook em `docs/MONITORING.md` |
+| Modelo ausente no container | `/health` e `/predict` respondem 503 (`model_loaded: false`), então o HEALTHCHECK do Docker marca o container como unhealthy (`src/api/main.py`) | Alertas de disponibilidade/erro; ver playbook em `docs/MONITORING.md` |
 
 ## 9. Manutenção
 
 - **Retreino.** DAG Airflow `vitorium_train_pipeline`, `schedule="@weekly"`,
-  tarefas `ingest_data` → `train_model` → `save_model_report`
-  (`dags/train_pipeline_dag.py`). Importante: a DAG retreina sobre o mesmo
+  tarefas `ingest_data` → `train_model` → `export_onnx` → `save_model_report`
+  (`dags/train_pipeline_dag.py`); a `export_onnx` falha o run se o ONNX
+  novo não for equivalente ao sklearn. Execução real registrada em
+  `docs/evidence/airflow_dags_test.log`. Importante: a DAG retreina sobre o mesmo
   corpus público fixo. Sem dados novos rotulados, o retreino semanal
   funciona como verificação de reprodutibilidade, não como adaptação a
-  deriva. A DAG não tem portão de qualidade (não compara o novo F1 com o
-  anterior antes de substituir o artefato); recomendamos adicionar um, por
+  deriva. A DAG não tem portão de qualidade de desempenho (não compara o
+  novo F1 com o anterior antes de substituir o artefato; o único portão é a
+  paridade do ONNX); recomendamos adicionar um, por
   exemplo bloquear a promoção se o F1 macro cair abaixo do valor atual
   (0,6158, `models/metrics.json`) menos uma tolerância definida.
-- **Promoção para produção.** A API carrega `models/model.joblib` na
-  inicialização. Um modelo novo só chega ao serviço por uma nova imagem: o
-  CI (`.github/workflows/ci.yml`) roda lint → test → build e, em push na
-  `main`, publica `ghcr.io/vdfs89/vitorium-mednlp-mlops:latest` e
-  `:<sha do commit>`. Observação: no workflow atual o job `test` retreina o
-  modelo e o job `build` copia esse `model.joblib` recém-treinado para a
-  imagem, enquanto `models/model.onnx` e `models/metrics.json` vêm do
-  repositório. Com seed fixa e as mesmas versões de biblioteca o resultado
-  deve coincidir, mas isso não é verificado automaticamente; um teste que
-  compare a saída sklearn e ONNX dentro do CI fecharia essa lacuna.
+- **Promoção para produção.** A API carrega `models/model.onnx` na
+  inicialização (`VITORIUM_BACKEND=onnx`, padrão), com fallback para
+  `models/model.joblib`. Um modelo novo só chega ao serviço por uma nova
+  imagem: no CI (`.github/workflows/ci.yml`) o job `test` retreina, reexporta
+  o ONNX (a exportação aborta se a paridade com o sklearn quebrar) e passa
+  `model.joblib` + `model.onnx` ao job `build`, que sobe o container, exige
+  `"backend":"onnx"` no `/health` e só então publica
+  `ghcr.io/vdfs89/vitorium-mednlp-mlops:latest` e `:<sha do commit>`.
+  `models/metrics.json` vem do repositório; o CI não compara as métricas do
+  re-treino com ele (a reprodutibilidade das métricas foi verificada no run
+  do Airflow e localmente).
 - **Monitoramento.** Métricas Prometheus, dashboard Grafana, regras de
   alerta e playbooks em `docs/MONITORING.md`.
 - **Versionamento.** Tags SemVer anotadas (`docs/VERSIONING.md`); a imagem

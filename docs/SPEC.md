@@ -25,20 +25,20 @@ com a evidência citada; nada aqui é só "escrito".
 
 | Requisito (enunciado Fase 3) | Onde está | Status e evidência |
 |---|---|---|
-| Pipeline CI/CD com GitHub Actions (lint → test → build) | `.github/workflows/ci.yml` | **Verificado**: execução verde no GitHub (`57cb177`: lint, test, build + push no GHCR). O `test` re-treina, exporta o ONNX e passa os dois artefatos ao `build`, que publica a imagem (`latest` + `<sha>`) |
+| Pipeline CI/CD com GitHub Actions (lint → test → build) | `.github/workflows/ci.yml` | **Verificado** no run de `57cb177` (lint, test, build + push no GHCR). Adicionados depois e simulados localmente, a confirmar no próximo run: export do ONNX no `test` e smoke test do container (`/health` com `backend: onnx`) antes do push |
 | DAG/script Airflow de treino/retreino | `dags/train_pipeline_dag.py` | **Verificado**: `airflow dags test` com Airflow 2.10.5, 4/4 tasks `success` (`ingest_data → train_model → export_onnx → save_model_report`), métricas idênticas às versionadas. Evidência: `docs/evidence/airflow_dags_test.log`, `airflow_task_states.txt`; reprodução: `make airflow-test` |
-| Dockerfile funcional da API | `Dockerfile` (multi-stage) + `.dockerignore` | Lint `hadolint` sem achados; a versão single-stage anterior foi validada com `docker compose up --build` na máquina do Vitor e no build do CI (`57cb177`) |
+| Dockerfile funcional da API | `Dockerfile` (multi-stage) + `.dockerignore` | Lint `hadolint` sem achados (`docs/evidence/promtool_hadolint.txt`); a versão single-stage anterior foi validada com `docker compose up --build` na máquina do Vitor e no build do CI (`57cb177`) |
 | Docker Compose: API + Prometheus + Grafana | `docker/docker-compose.yml`, `docker/prometheus.yml`, `docker/grafana/provisioning/` | **Verificado end-to-end**: 3 containers up, target UP, dashboard de 5 painéis com tráfego real. Evidência: `docs/evidence/*.png` |
-| Monitoramento com alertas | `docker/alerts.yml` + `docs/MONITORING.md` | **Verificado**: `promtool check rules` (9 regras) e `promtool test rules docker/alerts_test.yml` passando; playbook por alerta |
+| Monitoramento com alertas | `docker/alerts.yml` + `docs/MONITORING.md` | **Verificado**: `promtool check rules` (9 regras) e `promtool test rules` passando (`docs/evidence/promtool_hadolint.txt`); playbook por alerta |
 | Histórico de commits organizado | `git log` | Commits semânticos (Conventional Commits) a partir da `v0.1.1`, um por unidade de trabalho; os 3 primeiros commits são o scaffold inicial |
-| Scikit-Learn (modelo leve) | `src/training/train.py` | **Verificado**: acc 0,6195 / macro F1 0,6158 (`models/metrics.json`), determinístico (re-treino no CI e no Airflow reproduz os mesmos valores) |
-| FastAPI (`/predict`, `/health`) | `src/api/main.py`, `src/api/backends.py` | **Verificado**: 14 testes (`tests/`), incluindo integração e paridade entre backends |
+| Scikit-Learn (modelo leve) | `src/training/train.py` | **Verificado**: acc 0,6195 / macro F1 0,6158 (`models/metrics.json`), determinístico (re-treino no Airflow e local reproduz os mesmos valores) |
+| FastAPI (`/predict`, `/health`) | `src/api/main.py`, `src/api/backends.py` | **Verificado**: 15 testes (`tests/`), incluindo integração, paridade entre backends e `/health` 503 sem modelo |
 | `prometheus_client` instrumentando latência + contagem | `src/api/metrics.py` | **Verificado**: middleware real, testado; inclui `vitorium_model_info{backend}` |
 | Otimização de latência (ONNX/quantização/pruning) | `src/training/onnx_export.py`, `scripts/export_onnx.py`, `src/api/backends.py` | **Verificado**: API serve ONNX por padrão; paridade com sklearn em 100% dos 2.888 textos de teste (máx. dif. 1,6e-7); inferência pura 4,09x mais rápida (`models/onnx_latency_comparison.json`) |
 | Comparação de latência original vs. otimizado | `scripts/compare_backends.py` → `models/api_latency_comparison.json` | **Verificado**: end-to-end via HTTP, 5 rodadas intercaladas × 300 req: p50 3,401 → 2,514 ms (1,35x), p95 4,486 → 3,115 ms |
 | Decisão de arquitetura de nuvem documentada no README | `README.md` ("Decisão arquitetural") + ADR-002 | Feito: Cloud Run, com o checklist da aula; imagem pública no GHCR como artefato de deploy. Deploy real não feito (bônus) |
 | Model Card / limitações | `docs/MODEL_CARD.md` | Feito: métricas por classe, vieses, cenários de falha, errata do ONNX |
-| Vídeo STAR (≤ 5 min) | `docs/VIDEO_STAR.md` | Roteiro pronto (≈ 4 min de fala, cada número com arquivo-fonte); **gravação pendente** |
+| Vídeo STAR (≤ 5 min) | `docs/VIDEO_STAR.md` | Roteiro de 4:45 (≈ 3,8 min de fala, cada número com arquivo-fonte); **gravação pendente** |
 
 ## 3. Decisões de arquitetura (ADR resumido)
 
@@ -65,7 +65,7 @@ não uma omissão.
 
 **ADR-005 — Exportador ONNX próprio, com paridade obrigatória.** A
 conversão padrão do skl2onnx não reproduzia o `TfidfVectorizer` com
-`stop_words="english"` (rótulos divergiam em ~1,2% do teste) e dependia do
+`stop_words="english"` (35 de 2.888 rótulos divergentes, `docs/evidence/onnx_stock_export_parity.json`) e dependia do
 locale `en_US.UTF-8`. `src/training/onnx_export.py` monta o grafo
 equivalente e `scripts/export_onnx.py` aborta se qualquer texto do teste
 divergir além de 1e-5. A mesma checagem roda como task da DAG, então um
@@ -80,7 +80,7 @@ retreino nunca publica um ONNX não equivalente.
   outros projetos do portfólio.
 - `ruff check .` limpo antes de qualquer commit (rodar `make lint`).
 - Testes não são decorativos: cada teste em `tests/` falha de verdade se o
-  comportamento quebrar (rodados e confirmados neste ambiente, 7/7 passando).
+  comportamento quebrar (15 testes, rodados localmente e no CI).
 - Um commit por unidade de trabalho coerente (uma etapa, uma correção, uma
   feature) — não empilhar Etapas 2-4 num commit só.
 

@@ -107,21 +107,17 @@ segundos; depois a aba Actions com o último run verde, abrindo o grafo
 ### A4 — Retreino e registro de imagem (2:45 a 3:15)
 
 **Mostrar:** `dags/train_pipeline_dag.py` (decorador `@dag` com
-`schedule="@weekly"` e as três tasks), depois o log de execução da DAG em
+`schedule="@weekly"` e as quatro tasks), depois o log de execução da DAG em
 `docs/evidence/`, depois a página do pacote
 `ghcr.io/vdfs89/vitorium-mednlp-mlops` com as tags `latest` e por commit.
 
 **Falar:**
 
-> O retreino é uma DAG do Airflow com três tarefas, ingestão, treino e
-> relatório, agendada semanalmente e chamando as mesmas funções do treino
-> local. Aqui está o log da execução. E esta é a imagem publicada no GHCR,
+> O retreino é uma DAG do Airflow com quatro tarefas, ingestão, treino,
+> exportação do ONNX com checagem de equivalência, e relatório, agendada
+> semanalmente. Aqui está o log da execução real, quatro de quatro com
+> sucesso. E esta é a imagem publicada no GHCR,
 > com uma tag por commit, que também é o meu ponto de rollback.
-
-Se o log de execução do Airflow **não** estiver em `docs/evidence/` no
-momento da gravação, troque a frase "Aqui está o log da execução" por "A DAG
-está com a sintaxe validada; a execução completa é o próximo passo" e mostre
-apenas o código.
 
 ### A5 — Otimização ONNX (3:15 a 3:40)
 

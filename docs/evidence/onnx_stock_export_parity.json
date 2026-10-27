@@ -1,0 +1,16 @@
+{
+  "what": "Exportacao ONNX padrao (skl2onnx.convert_sklearn, zipmap=False), usada ate a v0.1.1 e que gerou o 7,70x publicado entao",
+  "n_texts": 2888,
+  "texts_source": "data/raw/medical_tc_test.csv (todas as linhas)",
+  "label_agreement": 0.9879,
+  "label_disagreements": 35,
+  "max_abs_proba_diff": 0.1358450072541198,
+  "mean_abs_proba_diff": 0.008727218117597815,
+  "rows_above_1e-5": 2614,
+  "note": "Requer o locale en_US.UTF-8 para carregar (instalado so no ambiente desta medicao); ele nao existe na imagem python:3.11-slim.",
+  "skl2onnx_version": "1.20.0",
+  "onnxruntime_version": "1.30.0",
+  "sklearn_version": "1.9.1",
+  "python": "3.11.17",
+  "timestamp_utc": "2026-10-27T12:46:17+00:00"
+}

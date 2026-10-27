@@ -106,8 +106,9 @@ Cada número abaixo vem de um arquivo versionado em `models/`, gerado por um
 script do repositório. Nenhum é estimativa.
 
 **Modelo** (`src/training/train.py`, TF-IDF + LogisticRegression, seed 42 —
-fonte: `models/metrics.json`). Treino determinístico: re-treinado do zero
-no CI e na DAG do Airflow, sempre com as mesmas métricas.
+fonte: `models/metrics.json`). Treino determinístico: o re-treino do zero
+na DAG do Airflow reproduziu acurácia e macro F1 idênticos aos versionados
+(`docs/evidence/airflow_dags_test.log`).
 
 | Métrica | Valor |
 |---|---:|
@@ -143,8 +144,9 @@ dominam o tempo de resposta.
 > **Errata.** Até a `v0.1.1` este README publicava 7,70x de speedup. Esse
 > número vinha de uma exportação ONNX padrão do skl2onnx que **não era
 > equivalente** ao modelo (descartava as stop words; ~1,2% dos rótulos
-> divergiam) e que nem carregava na imagem `python:3.11-slim` (dependia do
-> locale `en_US.UTF-8`). O exportador foi reescrito
+> divergiam — 35 de 2.888, ver `docs/evidence/onnx_stock_export_parity.json`)
+> e que nem carregava na imagem `python:3.11-slim` (dependia do locale
+> `en_US.UTF-8`). O exportador foi reescrito
 > (`src/training/onnx_export.py`) e todos os números acima foram medidos de
 > novo.
 
@@ -160,7 +162,7 @@ O `/metrics` expõe contagem de requisições por endpoint/status, histograma
 de latência e contagem de predições por classe. O Grafana sobe com um
 dashboard de 5 painéis provisionado; o Prometheus avalia 4 regras de alerta
 (`docker/alerts.yml`), cobertas por testes unitários do `promtool`
-(`docker/alerts_test.yml`):
+(`docker/alerts_test.yml`; saída em `docs/evidence/promtool_hadolint.txt`):
 
 | Alerta | Dispara quando | Severidade |
 |---|---|---|
@@ -230,7 +232,7 @@ make compose-up               # docker compose --env-file .env -f docker/docker-
 make install                  # poetry install (grupos main + dev)
 make train                    # preprocess + treino (dados em data/raw/)
 make export-onnx              # model.onnx + paridade + benchmark de inferência pura
-make test                     # 14 testes
+make test                     # 15 testes
 make lint
 make compare-backends         # benchmark end-to-end sklearn vs ONNX
 make airflow-test             # executa a DAG com Airflow num venv isolado

@@ -117,7 +117,7 @@ precisaria.
 ## 3. Dashboard Grafana "VITORIUM API"
 
 Provisionado de `docker/grafana/provisioning/dashboards/vitorium-api.json`,
-acessível em <http://localhost:3000> (admin/admin, ou anônimo como Viewer).
+acessível em <http://localhost:3000> (usuário/senha de `GF_SECURITY_ADMIN_USER`/`GF_SECURITY_ADMIN_PASSWORD` do `.env`; sem `.env`, admin/admin; ou anônimo como Viewer).
 Evidência com tráfego real: `docs/evidence/grafana-dashboard-populated.png`.
 
 | Painel | Consulta | Como ler |
@@ -159,7 +159,7 @@ Grafana param de atualizar; `/predict` não responde.
 ```bash
 docker compose -f docker/docker-compose.yml ps            # api está "Up (healthy)"? reiniciando?
 docker compose -f docker/docker-compose.yml logs api --tail 100
-curl -s http://localhost:8000/health                       # esperado: {"status":"ok","model_loaded":true}
+curl -s http://localhost:8000/health                       # esperado: {"status":"ok","model_loaded":true,"backend":"onnx"}
 curl -s http://localhost:8000/metrics | grep vitorium_ | head
 ```
 
@@ -194,7 +194,7 @@ Erro (%)" acima de 5; clientes recebendo 500 ou 503.
 
 ```bash
 docker compose -f docker/docker-compose.yml logs api --tail 200 | grep -iE "error|traceback|503"
-curl -s http://localhost:8000/health                       # model_loaded false => 503 em todo /predict
+curl -s http://localhost:8000/health                       # 503 + model_loaded false => 503 em todo /predict
 curl -s -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
   -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}'
 ```
@@ -312,7 +312,7 @@ confirmação exige a revisão de amostra rotulada da seção 1.2.
 
 | Gatilho | Ação | Estado |
 |---|---|---|
-| Agenda semanal | DAG `vitorium_train_pipeline` (`schedule="@weekly"`, `dags/train_pipeline_dag.py`): `ingest_data` → `train_model` → `save_model_report` | Implementado |
+| Agenda semanal | DAG `vitorium_train_pipeline` (`schedule="@weekly"`, `dags/train_pipeline_dag.py`): `ingest_data` → `train_model` → `export_onnx` → `save_model_report` | Implementado e executado (`docs/evidence/airflow_dags_test.log`) |
 | `VitoriumPredictionDistributionShift` persistente (mais de 24 h) com causa de dados confirmada | Disparo manual da DAG (`airflow dags trigger vitorium_train_pipeline`) depois de incorporar novos dados rotulados | Procedimento manual |
 | Queda de F1 em amostra rotulada | Mesmo procedimento acima | Procedimento manual; a revisão de amostra é proposta |
 
