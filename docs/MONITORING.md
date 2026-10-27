@@ -200,7 +200,7 @@ Erro do /predict (%)" acima de 5; clientes recebendo 500 ou 503.
 docker compose -f docker/docker-compose.yml logs api --tail 200 | grep -iE "error|traceback|503"
 curl -s http://localhost:8000/health                       # 503 + model_loaded false => 503 em todo /predict
 curl -s -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
-  -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}'
+  -d '{"texto": "Patient presents with acute chest pain radiating to the left arm, elevated troponin levels, and ECG changes consistent with myocardial infarction."}'
 ```
 
 PromQL, para ver qual código e qual rota:
@@ -243,7 +243,7 @@ ou sozinha (regressão).
 docker stats --no-stream vitorium-api                      # CPU e memória do container
 curl -s -o /dev/null -D - -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}' | grep -i x-process-time-ms
+  -d '{"texto": "Patient presents with acute chest pain radiating to the left arm, elevated troponin levels, and ECG changes consistent with myocardial infarction."}' | grep -i x-process-time-ms
 ```
 
 O campo `latencia_ms` da resposta mede só a inferência; o header

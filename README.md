@@ -213,7 +213,8 @@ vitorium-mednlp-mlops/
 ```bash
 docker run --rm -p 8000:8000 ghcr.io/vdfs89/vitorium-mednlp-mlops:latest
 curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" \
-  -d '{"texto": "Patient presents with acute chest pain and elevated troponin levels."}'
+  -d '{"texto": "Patient presents with acute chest pain radiating to the left arm, elevated troponin levels, and ECG changes consistent with myocardial infarction."}'
+# -> {"urgencia": "urgente", ...}  (mesmo exemplo pré-preenchido no Swagger /docs)
 ```
 
 **Opção 2 — stack completa local** (API + Prometheus + Grafana):
