@@ -1,0 +1,151 @@
+{
+  "summary_median_across_rounds": {
+    "sklearn": {
+      "p50_ms": 3.401,
+      "p95_ms": 4.486,
+      "p99_ms": 8.109,
+      "mean_ms": 3.537
+    },
+    "onnx": {
+      "p50_ms": 2.514,
+      "p95_ms": 3.115,
+      "p99_ms": 5.188,
+      "mean_ms": 2.654
+    }
+  },
+  "speedup_sklearn_over_onnx": {
+    "p50_x": 1.353,
+    "p95_x": 1.44,
+    "p99_x": 1.563,
+    "mean_x": 1.333
+  },
+  "delta_p50_ms": 0.887,
+  "per_round": {
+    "sklearn": [
+      {
+        "n": 300,
+        "p50_ms": 3.431,
+        "p95_ms": 4.961,
+        "p99_ms": 8.873,
+        "mean_ms": 3.706,
+        "min_ms": 2.765,
+        "max_ms": 32.07
+      },
+      {
+        "n": 300,
+        "p50_ms": 3.666,
+        "p95_ms": 5.242,
+        "p99_ms": 9.785,
+        "mean_ms": 4.035,
+        "min_ms": 2.922,
+        "max_ms": 63.114
+      },
+      {
+        "n": 300,
+        "p50_ms": 3.22,
+        "p95_ms": 3.979,
+        "p99_ms": 8.109,
+        "mean_ms": 3.362,
+        "min_ms": 2.731,
+        "max_ms": 9.41
+      },
+      {
+        "n": 300,
+        "p50_ms": 3.187,
+        "p95_ms": 3.993,
+        "p99_ms": 6.221,
+        "mean_ms": 3.4,
+        "min_ms": 2.726,
+        "max_ms": 35.329
+      },
+      {
+        "n": 300,
+        "p50_ms": 3.401,
+        "p95_ms": 4.486,
+        "p99_ms": 6.411,
+        "mean_ms": 3.537,
+        "min_ms": 2.827,
+        "max_ms": 11.637
+      }
+    ],
+    "onnx": [
+      {
+        "n": 300,
+        "p50_ms": 2.489,
+        "p95_ms": 3.05,
+        "p99_ms": 5.188,
+        "mean_ms": 2.544,
+        "min_ms": 1.953,
+        "max_ms": 6.174
+      },
+      {
+        "n": 300,
+        "p50_ms": 2.65,
+        "p95_ms": 3.654,
+        "p99_ms": 6.946,
+        "mean_ms": 2.874,
+        "min_ms": 1.879,
+        "max_ms": 41.61
+      },
+      {
+        "n": 300,
+        "p50_ms": 2.566,
+        "p95_ms": 3.419,
+        "p99_ms": 5.159,
+        "mean_ms": 2.665,
+        "min_ms": 1.953,
+        "max_ms": 6.972
+      },
+      {
+        "n": 300,
+        "p50_ms": 2.514,
+        "p95_ms": 3.115,
+        "p99_ms": 5.975,
+        "mean_ms": 2.654,
+        "min_ms": 1.804,
+        "max_ms": 25.79
+      },
+      {
+        "n": 300,
+        "p50_ms": 2.419,
+        "p95_ms": 2.989,
+        "p99_ms": 3.912,
+        "mean_ms": 2.472,
+        "min_ms": 1.967,
+        "max_ms": 4.883
+      }
+    ]
+  },
+  "n": 300,
+  "rounds": 5,
+  "warmup": 50,
+  "endpoint": "POST /predict",
+  "payload_chars": 191,
+  "sample_prediction": {
+    "sklearn": {
+      "urgencia": "urgente",
+      "probabilidades": {
+        "atencao": 0.07744210323169015,
+        "normal": 0.32556419988943014,
+        "urgente": 0.5969936968788798
+      }
+    },
+    "onnx": {
+      "urgencia": "urgente",
+      "probabilidades": {
+        "atencao": 0.07744209468364716,
+        "normal": 0.3255642354488373,
+        "urgente": 0.5969936847686768
+      }
+    }
+  },
+  "sample_max_abs_proba_diff": 3.555940714106143e-08,
+  "method": "Two uvicorn servers (same code, same machine, 1 worker each, default logging as in the Dockerfile CMD) differing only in VITORIUM_BACKEND; /health verified to report the requested backend. Each round runs scripts/bench_latency.run (sequential keep-alive httpx client, warmup requests discarded, client-side wall time per request) on both, alternating order per round; summary = median across rounds.",
+  "python": "3.11.17",
+  "sklearn_version": "1.9.1",
+  "onnxruntime_version": "1.30.0",
+  "httpx_version": "0.27.2",
+  "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_count": 2,
+  "timestamp_utc": "2026-10-27T12:27:46+00:00"
+}

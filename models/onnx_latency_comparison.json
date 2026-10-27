@@ -1,7 +1,27 @@
 {
   "n": 300,
-  "sklearn_mean_ms": 0.6728,
-  "onnx_mean_ms": 0.0873,
-  "speedup_x": 7.7,
-  "labels_match": true
+  "sklearn_mean_ms": 1.0841,
+  "onnx_mean_ms": 0.2653,
+  "speedup_x": 4.09,
+  "sklearn_p50_ms": 1.0247,
+  "onnx_p50_ms": 0.2538,
+  "speedup_p50_x": 4.04,
+  "sklearn_p95_ms": 1.5206,
+  "onnx_p95_ms": 0.3655,
+  "labels_match": true,
+  "warmup": 50,
+  "parity": {
+    "n_texts": 2888,
+    "max_abs_proba_diff": 1.5981484491334186e-07,
+    "rows_above_tolerance": 0,
+    "tolerance": 1e-05,
+    "label_agreement": 1.0,
+    "texts_source": "data/raw/medical_tc_test.csv (all rows)"
+  },
+  "method": "In-process predict_proba on one text per call (same call pattern as /predict), sklearn and ONNX interleaved per text after warmup; texts cycled from the evaluation set. No HTTP; see api_latency_comparison.json.",
+  "python": "3.11.17",
+  "sklearn_version": "1.9.1",
+  "onnxruntime_version": "1.30.0",
+  "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "timestamp_utc": "2026-10-27T12:23:19+00:00"
 }
