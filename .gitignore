@@ -16,3 +16,7 @@ venv/
 # Airflow local (scripts/run_airflow_dag_test.sh)
 .venv-airflow/
 .airflow-home/
+
+# Artefatos de transferencia/exportacao que nao pertencem ao repositorio
+*.zip
+*.bundle
