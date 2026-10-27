@@ -38,7 +38,7 @@ com a evidência citada; nada aqui é só "escrito".
 | Comparação de latência original vs. otimizado | `scripts/compare_backends.py` → `models/api_latency_comparison.json` | **Verificado**: end-to-end via HTTP, 5 rodadas intercaladas × 300 req: p50 3,401 → 2,514 ms (1,35x), p95 4,486 → 3,115 ms |
 | Decisão de arquitetura de nuvem documentada no README | `README.md` ("Decisão arquitetural") + ADR-002 | Feito: Cloud Run, com o checklist da aula; imagem pública no GHCR como artefato de deploy. Deploy real não feito (bônus) |
 | Model Card / limitações | `docs/MODEL_CARD.md` | Feito: métricas por classe, vieses, cenários de falha, errata do ONNX |
-| Vídeo STAR (≤ 5 min) | `docs/VIDEO_STAR.md` | Roteiro de 4:45 (≈ 3,8 min de fala, cada número com arquivo-fonte); **gravação pendente** |
+| Vídeo STAR (≤ 5 min) | `README.md`, seção "Vídeo STAR" | **Gravação pendente**; o link entra no README |
 
 ## 3. Decisões de arquitetura (ADR resumido)
 
@@ -89,7 +89,7 @@ como task da DAG e no CI.
 
 ## 5. Próximos passos
 
-1. Gravar o vídeo STAR seguindo `docs/VIDEO_STAR.md` e taguear `v1.0.0`.
+1. Gravar o vídeo STAR, publicar o link no README e taguear `v1.0.0`.
 2. (Bônus) `gcloud run deploy --image ghcr.io/vdfs89/vitorium-mednlp-mlops:<sha>`.
 3. (Produção) Alertmanager com roteamento, e amostragem rotulada periódica
    para medir acurácia real (hoje o drift é monitorado por proxy).

@@ -14,7 +14,7 @@ Tech Challenge — FIAP Pós-Tech em Machine Learning Engineering, Fase 3 (Cloud
 | [`docs/SPEC.md`](docs/SPEC.md) | Especificação (SDD): rastreabilidade de cada requisito obrigatório + ADRs |
 | [`docs/MODEL_CARD.md`](docs/MODEL_CARD.md) | Model Card: métricas por classe, limitações, vieses e cenários de falha |
 | [`docs/MONITORING.md`](docs/MONITORING.md) | Plano de monitoramento: SLOs, alertas e playbook de resposta |
-| [`docs/VIDEO_STAR.md`](docs/VIDEO_STAR.md) | Roteiro do vídeo de 5 minutos (método STAR) |
+| [Vídeo STAR](#vídeo-star) | Apresentação de 5 minutos (método STAR) |
 | [`docs/VERSIONING.md`](docs/VERSIONING.md) | Regra de versionamento (tags SemVer) |
 | [`docs/evidence/`](docs/evidence/) | Evidências de execução: Prometheus, Grafana e Airflow |
 
@@ -201,7 +201,7 @@ vitorium-mednlp-mlops/
 │   ├── alerts.yml             # 4 alertas + recording rules
 │   ├── alerts_test.yml        # testes unitarios das regras (promtool)
 │   └── grafana/provisioning/  # datasource + dashboard (5 paineis)
-├── docs/                      # SPEC, Model Card, monitoramento, roteiro STAR, evidencias
+├── docs/                      # SPEC, Model Card, monitoramento, evidencias
 ├── models/                    # model.joblib, model.onnx, metrics.json, benchmarks (JSON)
 ├── scripts/
 │   ├── bench_latency.py       # latencia contra um servidor rodando
@@ -272,7 +272,13 @@ o CI baixa os dois com `curl`).
 - [x] **Etapa 4** — API servindo ONNX, com paridade comprovada e comparação
       de latência original vs. otimizado na inferência pura (4,09x) e end-to-end
       (1,35x no p50).
-- [ ] **Vídeo STAR** — roteiro pronto em [`docs/VIDEO_STAR.md`](docs/VIDEO_STAR.md).
+- [ ] **Vídeo STAR** — ver seção abaixo.
+
+## Vídeo STAR
+
+Apresentação do projeto em até 5 minutos (Situation, Task, Action, Result):
+
+**Link:** _(a adicionar)_
 
 ## Limitações e uso responsável
 
