@@ -1,19 +1,56 @@
-FROM python:3.11-slim AS base
+# VITORIUM — imagem da API de inferencia (multi-stage).
+#
+#   Estagio 1 (builder): instala as dependencias de runtime num virtualenv
+#                        isolado em /opt/venv. Todas as dependencias tem wheels
+#                        manylinux, entao nao ha compiladores nesta imagem.
+#   Estagio 2 (runtime): parte de um python:3.11-slim limpo e copia apenas o
+#                        venv + src/ + models/. Nada de pip cache, requirements
+#                        ou arquivos de build vai para a imagem final.
+#
+# Build:  docker build -t vitorium-api:latest .            (contexto = raiz)
+# Compose: docker compose -f docker/docker-compose.yml up  (context: ..)
+#
+# O backend de inferencia (VITORIUM_BACKEND=sklearn|onnx) NAO e fixado aqui:
+# e definido em tempo de execucao pelo docker-compose.yml / `docker run -e`.
+
+# ---------------------------------------------------------------------------
+# Estagio 1 — builder
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-WORKDIR /app
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
 
+WORKDIR /build
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/ src/
-COPY models/ models/
+# ---------------------------------------------------------------------------
+# Estagio 2 — runtime
+# ---------------------------------------------------------------------------
+FROM python:3.11-slim AS runtime
 
-RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app
+LABEL org.opencontainers.image.source="https://github.com/vdfs89/vitorium-mednlp-mlops" \
+      org.opencontainers.image.title="VITORIUM API" \
+      org.opencontainers.image.description="API FastAPI de triagem de textos medicos (TF-IDF + LogisticRegression, backends sklearn/ONNX) com metricas Prometheus"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN useradd --create-home --shell /bin/bash appuser
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appuser src/ src/
+COPY --chown=appuser:appuser models/ models/
+
 USER appuser
 
 EXPOSE 8000

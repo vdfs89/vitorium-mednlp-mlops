@@ -1,0 +1,49 @@
+# Contexto de build enxuto: a imagem so precisa de requirements.txt, src/ e
+# models/ (ver Dockerfile). Todo o resto fica fora do contexto.
+
+# VCS / CI
+.git
+.gitignore
+.github
+
+# Ambientes virtuais e caches
+.venv
+venv
+env
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+*.egg-info
+
+# Segredos e configuracao local
+.env
+.env.*
+
+# Dados, notebooks, docs, testes e orquestracao (nao usados em runtime)
+data
+docs
+tests
+notebooks
+dags
+scripts
+mlruns
+*.zip
+*.md
+
+# Configs de infraestrutura (Prometheus/Grafana/compose) — montadas por volume
+docker
+
+# Ferramental de desenvolvimento
+Makefile
+pyproject.toml
+poetry.lock
+
+# Editor / SO
+.vscode
+.idea
+.DS_Store
