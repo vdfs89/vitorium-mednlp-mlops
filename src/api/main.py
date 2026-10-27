@@ -18,7 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response, status
 
 from .backends import BACKEND_ENV_VAR, InferenceBackend, load_backend
 from .metrics import PREDICTION_COUNT, install_metrics_middleware, set_model_info
@@ -56,12 +56,17 @@ install_metrics_middleware(app)
 
 
 @app.get("/health", response_model=HealthOutput)
-def health() -> HealthOutput:
-    return HealthOutput(
-        status="ok",
-        model_loaded=_backend is not None,
-        backend=_backend.name if _backend is not None else "none",
-    )
+def health(response: Response) -> HealthOutput:
+    """Readiness probe: 200 only when a backend is loaded and /predict can answer.
+
+    Returning 503 without a model makes the Docker HEALTHCHECK (and any load
+    balancer) mark the container unhealthy instead of routing traffic to an
+    instance whose /predict would fail with 503.
+    """
+    if _backend is None:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return HealthOutput(status="unavailable", model_loaded=False, backend="none")
+    return HealthOutput(status="ok", model_loaded=True, backend=_backend.name)
 
 
 @app.post("/predict", response_model=PredictionOutput)

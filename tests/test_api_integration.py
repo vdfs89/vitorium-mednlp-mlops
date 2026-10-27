@@ -59,3 +59,20 @@ def test_metrics_endpoint_exposes_prometheus_format() -> None:
         response = client.get("/metrics")
         assert response.status_code == 200
         assert b"vitorium_requests_total" in response.content
+
+
+def test_health_returns_503_when_no_backend_is_loaded() -> None:
+    """Without a model the probe must fail, so Docker marks the container unhealthy."""
+    import src.api.main as api_main
+
+    with TestClient(app) as client:
+        loaded = api_main._backend
+        api_main._backend = None
+        try:
+            response = client.get("/health")
+            predict = client.post("/predict", json={"texto": "Patient with chest pain."})
+        finally:
+            api_main._backend = loaded
+    assert response.status_code == 503
+    assert response.json() == {"status": "unavailable", "model_loaded": False, "backend": "none"}
+    assert predict.status_code == 503
