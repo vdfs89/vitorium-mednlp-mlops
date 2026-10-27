@@ -12,3 +12,7 @@ data/processed/*.csv
 venv/
 
 .DS_Store
+
+# Airflow local (scripts/run_airflow_dag_test.sh)
+.venv-airflow/
+.airflow-home/
