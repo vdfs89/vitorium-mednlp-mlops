@@ -33,13 +33,13 @@
     },
     {
       "id": 3,
-      "title": "Taxa de Erro (%)",
+      "title": "Taxa de Erro do /predict (%)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
       "targets": [
         {
-          "expr": "100 * (sum(rate(vitorium_requests_total{status_code=~\"5..\"}[1m])) or vector(0)) / sum(rate(vitorium_requests_total[1m]))",
-          "legendFormat": "error rate"
+          "expr": "100 * (sum(rate(vitorium_requests_total{job=\"vitorium-api\",endpoint=\"/predict\",status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(vitorium_requests_total{job=\"vitorium-api\",endpoint=\"/predict\"}[5m]))",
+          "legendFormat": "5xx / total do /predict"
         }
       ]
     },
